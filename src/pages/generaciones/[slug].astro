@@ -1,0 +1,232 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import DigimonCard from '../../components/DigimonCard.astro';
+import { getSeriesBySlug, getSeriesSlugs } from '../../data/series/index.js';
+import { getDigimonById, detailHref } from '../../services/digimonService.js';
+import { t, normalizeLang } from '../../i18n/index.js';
+
+export const prerender = true;
+
+export function getStaticPaths() {
+  return getSeriesSlugs().map((slug) => ({ params: { slug } }));
+}
+
+const { slug } = Astro.params;
+const lang = normalizeLang(Astro.url.searchParams.get('lang'));
+const serie = getSeriesBySlug(slug);
+
+if (!serie) {
+  Astro.response.status = 404;
+}
+
+let featured = [];
+if (serie) {
+  const details = await Promise.all(serie.featuredIds.map((id) => getDigimonById(id).catch(() => null)));
+  featured = details
+    .filter(Boolean)
+    .map((d) => ({ id: d.id, name: d.name, img: d.img, level: d.level, nativeLevel: d.nativeLevel, href: detailHref(d) }));
+}
+
+const title = serie ? `${serie.name} — DigiDex Web` : t(lang, 'detail.notFoundT') + ' — DigiDex Web';
+const desc = serie ? (lang === 'en' ? serie.description.en : serie.description.es) : t(lang, 'detail.notFoundS');
+const period = serie ? (lang === 'en' && serie.periodEn ? serie.periodEn : serie.period) : '';
+const tagline = serie ? (lang === 'en' ? serie.tagline.en : serie.tagline.es) : '';
+---
+<Layout title={title} description={desc} canonical={serie ? `/generaciones/${serie.slug}` : ''} lang={lang}>
+  <main class="dex-page-bg">
+    <div class="container-xl serie-page">
+      <a href="/generaciones" class="back-link">
+        <span class="material-icons">arrow_back</span> <span data-i18n="generations.back">{t(lang, 'generations.back')}</span>
+      </a>
+
+      {!serie ? (
+        <section class="error-card">
+          <div class="state-block">
+            <span class="material-icons state-icon">help_outline</span>
+            <div class="state-heading" data-i18n="detail.notFoundT">{t(lang, 'detail.notFoundT')}</div>
+            <div class="state-sub" data-i18n="detail.notFoundS">{t(lang, 'detail.notFoundS')}</div>
+          </div>
+        </section>
+      ) : (
+        <div>
+          <div class="serie-hero">
+            <span class="serie-glow" style={`background:${serie.accent}`} aria-hidden="true"></span>
+            <span class="material-icons serie-icon" aria-hidden="true">{serie.icon}</span>
+            <div class="hero-kicker">{lang === 'en' ? serie.formatEn : serie.format}</div>
+            <h1 class="serie-title">{serie.name}</h1>
+            <div class="serie-period">{period}</div>
+            <p class="serie-tagline">{tagline}</p>
+            <p class="serie-desc">{desc}</p>
+          </div>
+
+          <section class="detail-section" aria-label={t(lang, 'generations.featured')}>
+            <h2 class="section-title">
+              <span class="material-icons section-icon" aria-hidden="true">stars</span>
+              <span data-i18n="generations.featured">{t(lang, 'generations.featured')}</span>
+              ({featured.length})
+            </h2>
+            <div class="dex-grid serie-grid">
+              {featured.map((d) => <DigimonCard digimon={d} />)}
+            </div>
+          </section>
+        </div>
+      )}
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .serie-page {
+    padding-bottom: 48px;
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: rgba(255, 255, 255, 0.75);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 24px;
+    padding: 6px 4px;
+    border-radius: 6px;
+  }
+
+  .back-link:hover {
+    color: var(--secondary);
+  }
+
+  .serie-hero {
+    position: relative;
+    overflow: hidden;
+    max-width: 1000px;
+    margin: 0 auto;
+    text-align: center;
+    background: var(--card-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 36px 24px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .serie-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    opacity: 0.9;
+  }
+
+  .serie-icon {
+    font-size: 44px;
+    color: var(--secondary);
+  }
+
+  .hero-kicker {
+    margin-top: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+  }
+
+  .serie-title {
+    margin: 8px 0 4px;
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    color: #fff;
+    overflow-wrap: break-word;
+  }
+
+  .serie-period {
+    display: inline-block;
+    margin-top: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--secondary);
+    border: 1px solid rgba(255, 204, 0, 0.4);
+    border-radius: 999px;
+    padding: 4px 16px;
+  }
+
+  .serie-tagline {
+    margin: 12px 0 0;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .serie-desc {
+    max-width: 620px;
+    margin: 8px auto 0;
+    font-size: 14.5px;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.7);
+  }
+
+  .detail-section {
+    max-width: 1000px;
+    margin: 36px auto 0;
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #fff;
+    margin: 0 0 14px;
+  }
+
+  .section-icon {
+    color: var(--secondary);
+    font-size: 20px;
+  }
+
+  .serie-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    justify-items: center;
+  }
+
+  .error-card {
+    background: var(--card-bg);
+    border: 1px solid rgba(255, 82, 82, 0.4);
+    border-radius: var(--radius);
+  }
+
+  .state-block {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 48px 24px;
+  }
+
+  .state-icon {
+    font-size: 56px;
+    color: #9e9e9e;
+  }
+
+  .state-heading {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin-top: 12px;
+  }
+
+  .state-sub {
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 6px;
+  }
+</style>

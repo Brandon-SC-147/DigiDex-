@@ -48,10 +48,15 @@ Nueva etapa del proyecto, construida sobre Astro y orientada a convertirse en un
 ## Evolución planificada
 
 - Catálogo ampliado automáticamente con nuevos registros de Digi-API.
-- Selector ES / EN.
 - Traducción visual al español.
-- Sección independiente para explorar series / generaciones.
 - Mejoras de accesibilidad y experiencia móvil.
+
+## Generaciones
+
+Navegación por eras/series (`/generaciones` + `/generaciones/:slug`) con mega menú
+en el header. Dataset local curado en `src/data/series/` (ver su README):
+9 series con años verificados y Digimon destacados por ID real de Digi-API.
+Las agrupaciones visuales son internas de DigiDex, no una clasificación oficial.
 
 ## API
 
@@ -101,13 +106,28 @@ src/
 ├── components/
 │   ├── DigimonCard.astro
 │   └── DigimonFilter.astro
+├── data/
+│   ├── translations/
+│   │   ├── descriptions.es.json
+│   │   └── skills.es.json
+│   └── series/
+│       ├── series.json
+│       ├── index.js
+│       └── README.md
+├── i18n/
+│   ├── es.js
+│   ├── en.js
+│   └── index.js
 ├── layouts/
 │   └── Layout.astro
 ├── pages/
 │   ├── index.astro
 │   ├── dex/
 │   │   ├── index.astro
-│   │   └── [name].astro
+│   │   └── [slug].astro
+│   ├── generaciones/
+│   │   ├── index.astro
+│   │   └── [slug].astro
 │   └── 404.astro
 ├── services/
 │   └── digimonService.js
@@ -123,13 +143,13 @@ src/
 | `/dex` | Catálogo paginado (24 por página, prerenderizado + hidratado). Acepta `?page=` (base 1), `?name=`, `?level=`, `?attribute=` y `?xAntibody=`. |
 | `/dex/:id-:slug` | Detalle del Digimon, renderizado bajo demanda (SSR). El ID identifica, el slug describe. |
 | `/dex/:name` | Formato heredado: redirect 302 a la URL estable con ID. |
+| `/generaciones` | Índice de eras/series (prerenderizado). |
+| `/generaciones/:slug` | Ficha de serie con Digimon destacados (prerenderizada). |
 
 ### Rutas previstas
 
-Arquitectura futura, todavía no implementada:
-
-- Sección independiente de series / generaciones.
-- Selector de idioma ES / EN.
+Ninguna pendiente a corto plazo: el selector ES / EN ya está implementado
+y las rutas de generaciones (`/generaciones`, `/generaciones/:slug`) existen.
 
 ## Instalación
 
@@ -164,7 +184,7 @@ npm run preview
 - [x] Rutas estables por ID con redirección heredada
 - [x] Evoluciones y fichas enriquecidas
 - [x] Selector ES / EN
-- [ ] Sección de series / generaciones
+- [x] Sección de series / generaciones
 
 ## Autor
 
