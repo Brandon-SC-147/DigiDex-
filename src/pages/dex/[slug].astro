@@ -16,6 +16,8 @@ import {
   localizeAttr,
   localizeType,
   localizeField,
+  localizeDescription,
+  localizeSkillDescription,
 } from '../../i18n/index.js';
 
 /**
@@ -166,12 +168,16 @@ const relatedHtml = related.map(relatedCardHtml).join('');
 const hasRelated = related.length > 0;
 
 function skillHtml(s) {
+  const desc = localizeSkillDescription(s, lang) || t(lang, 'detail.skillNoDesc');
   return (
-    '<li class="skill-item"><div class="skill-name">' +
+    '<li class="skill-item">' +
+    '<div class="skill-head"><span class="material-icons skill-icon" aria-hidden="true">auto_awesome</span>' +
+    '<div class="skill-titles"><div class="skill-name">' +
     esc(s.name) +
     '</div>' +
     (s.translation ? '<div class="skill-trans">' + esc(s.translation) + '</div>' : '') +
-    (s.description ? '<div class="skill-desc">' + esc(s.description) + '</div>' : '') +
+    '</div></div>' +
+    '<div class="skill-desc">' + esc(desc) + '</div>' +
     '</li>'
   );
 }
@@ -186,18 +192,29 @@ const fieldChips = digimon
       .map(
         (f) =>
           '<span class="chip chip-field">' +
-          (f.image ? '<img src="' + esc(f.image) + '" alt="" width="18" height="18" loading="lazy" />' : '') +
-          esc(localizeField(f.name)) +
+          (f.image ? '<img src="' + esc(f.image) + '" alt="" width="18" height="18" loading="lazy" />' : '<span class="material-icons chip-fallback-icon" aria-hidden="true">category</span>') +
+          esc(localizeField(f.name, lang)) +
           '</span>',
       )
       .join('')
   : '';
+const descLocalized = digimon ? localizeDescription(digimon, lang) : { text: '', translated: true };
+const showDescFallback = Boolean(lang === 'es' && !descLocalized.translated && descLocalized.text);
 const factsJson = digimon
   ? JSON.stringify({
       attributes: digimon.attributes,
       types: digimon.types,
       fields: digimon.fields.map((f) => ({ name: f.name, image: f.image })),
       nativeLevel: digimon.nativeLevel,
+      descTranslated: descLocalized.translated,
+      descEn: digimon.description || '',
+      descEs: localizeDescription(digimon, 'es').text || '',
+      skills: digimon.skills.map((s) => ({
+        name: s.name,
+        alias: s.translation || '',
+        descEn: s.description || '',
+        descEs: localizeSkillDescription(s, 'es') || '',
+      })),
       skillsRest: Math.max(0, digimon.skills.length - 10),
       priorRest: Math.max(0, digimon.priorEvolutions.length - 12),
       nextRest: Math.max(0, digimon.nextEvolutions.length - 12),
@@ -278,13 +295,19 @@ const factsJson = digimon
             </section>
           </div>
 
-          {digimon.description ? (
+          {descLocalized.text ? (
             <section class="detail-section">
-              <h2 class="section-title" data-i18n="detail.descT">{t(lang, 'detail.descT')}</h2>
-              <p class="desc-text">{digimon.description}</p>
-              {lang === 'es' ? (
-                <p class="desc-note" data-i18n="detail.descNote">{t(lang, 'detail.descNote')}</p>
-              ) : null}
+              <h2 class="section-title section-title-row">
+                <span class="material-icons section-icon" aria-hidden="true">menu_book</span>
+                <span data-i18n="detail.descT">{t(lang, 'detail.descT')}</span>
+              </h2>
+              <div class="desc-card">
+                <p class="desc-text" id="dex-desc-text">{descLocalized.text}</p>
+                <p class="desc-fallback" id="dex-desc-fallback" hidden={!showDescFallback}>
+                  <span class="material-icons desc-fallback-icon" aria-hidden="true">info</span>
+                  <span data-i18n="detail.descFallback">{t(lang, 'detail.descFallback')}</span>
+                </p>
+              </div>
             </section>
           ) : null}
 
@@ -298,11 +321,11 @@ const factsJson = digimon
           {hasSkills ? (
             <section class="detail-section">
               <h2 class="section-title"><span data-i18n="detail.skillsT">{t(lang, 'detail.skillsT')}</span> ({digimon.skills.length})</h2>
-              <ul class="skill-list" set:html={skillsHtml}></ul>
+              <ul class="skill-list" data-skills="first" set:html={skillsHtml}></ul>
               {hasRestSkills ? (
                 <details class="evo-more">
                   <summary class="evo-summary" data-i18n-more="skills" data-count={restSkillsCount}>{t(lang, 'detail.moreSkills', { n: restSkillsCount })}</summary>
-                  <ul class="skill-list" set:html={restSkillsHtml}></ul>
+                  <ul class="skill-list" data-skills="rest" set:html={restSkillsHtml}></ul>
                 </details>
               ) : null}
             </section>
@@ -354,6 +377,31 @@ const factsJson = digimon
       .replaceAll('"', '&quot;');
   }
 
+  function skillCardHtml(s, lang) {
+    const desc = (lang === 'es' ? s.descEs : s.descEn) || s.descEn || t(lang, 'detail.skillNoDesc');
+    return (
+      '<li class="skill-item">' +
+      '<div class="skill-head"><span class="material-icons skill-icon" aria-hidden="true">auto_awesome</span>' +
+      '<div class="skill-titles"><div class="skill-name">' +
+      esc(s.name) +
+      '</div>' +
+      (s.alias ? '<div class="skill-trans">' + esc(s.alias) + '</div>' : '') +
+      '</div></div>' +
+      '<div class="skill-desc">' + esc(desc) + '</div>' +
+      '</li>'
+    );
+  }
+
+  function renderSkills(facts, lang) {
+    const skills = facts.skills || [];
+    const lists = document.querySelectorAll('.skill-list[data-skills]');
+    if (!lists.length || !skills.length) return;
+    const first = skills.slice(0, 10).map((s) => skillCardHtml(s, lang)).join('');
+    const rest = skills.slice(10).map((s) => skillCardHtml(s, lang)).join('');
+    if (lists[0]) lists[0].innerHTML = first;
+    if (lists[1]) lists[1].innerHTML = rest;
+  }
+
   // Re-render de valores dinámicos al cambiar de idioma (sin refetch).
   window.addEventListener('digidex:lang', (e) => {
     const lang = (e.detail && e.detail.lang) || currentLang();
@@ -380,12 +428,27 @@ const factsJson = digimon
         .map(
           (f) =>
             '<span class="chip chip-field">' +
-            (f.image ? `<img src="${esc(f.image)}" alt="" width="18" height="18" loading="lazy" />` : '') +
-            esc(localizeField(f.name)) +
+            (f.image ? `<img src="${esc(f.image)}" alt="" width="18" height="18" loading="lazy" />` : '<span class="material-icons chip-fallback-icon" aria-hidden="true">category</span>') +
+            esc(localizeField(f.name, lang)) +
             '</span>',
         )
         .join('');
     }
+    const descText = document.getElementById('dex-desc-text');
+    if (descText) {
+      const text = lang === 'es' ? facts.descEs || facts.descEn : facts.descEn;
+      if (text) descText.textContent = text;
+    }
+    const descFallback = document.getElementById('dex-desc-fallback');
+    if (descFallback) {
+      const show = lang === 'es' && !facts.descTranslated && Boolean(facts.descEn);
+      descFallback.hidden = !show;
+      if (show) {
+        const label = descFallback.querySelector('[data-i18n]');
+        if (label) label.textContent = t(lang, 'detail.descFallback');
+      }
+    }
+    renderSkills(facts, lang);
     const relatedTitle = document.getElementById('dex-related-title');
     if (relatedTitle?.dataset.relatedLevel) {
       relatedTitle.textContent = t(lang, 'detail.relatedT', {
@@ -398,11 +461,6 @@ const factsJson = digimon
       if (kind === 'skills') el.textContent = t(lang, 'detail.moreSkills', { n });
       else el.textContent = t(lang, 'detail.moreEvo', { n });
     });
-    const descNote = document.querySelector('.desc-note');
-    if (descNote) {
-      if (lang === 'es') descNote.textContent = t(lang, 'detail.descNote');
-      else descNote.remove();
-    }
   });
 </script>
 
@@ -609,7 +667,7 @@ const factsJson = digimon
 
   .detail-section {
     max-width: 1000px;
-    margin: 32px auto 0;
+    margin: 40px auto 0;
   }
 
   .section-title {
@@ -618,18 +676,58 @@ const factsJson = digimon
     letter-spacing: 1px;
     text-transform: uppercase;
     color: #fff;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
+  }
+
+  .section-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-icon {
+    color: var(--secondary);
+    font-size: 20px;
+  }
+
+  .desc-card {
+    background: var(--card-bg);
+    border: 1px solid rgba(15, 98, 254, 0.35);
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
   }
 
   .desc-text {
-    color: rgba(255, 255, 255, 0.8);
-    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.88);
+    line-height: 1.8;
     font-size: 15px;
-    background: var(--card-bg);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 18px;
     margin: 0;
+    max-width: 68ch;
+    overflow-wrap: break-word;
+  }
+
+  .desc-fallback {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 14px 0 0;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(45, 226, 230, 0.4);
+    background: rgba(45, 226, 230, 0.07);
+    color: var(--info);
+    font-size: 12.5px;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .desc-fallback[hidden] {
+    display: none;
+  }
+
+  .desc-fallback-icon {
+    font-size: 16px;
   }
 
   .desc-note {
@@ -648,13 +746,27 @@ const factsJson = digimon
   .chip {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 6px 14px;
+    gap: 8px;
+    padding: 8px 16px;
     border-radius: 999px;
     font-size: 13px;
     font-weight: 600;
     border: 1px solid rgba(255, 255, 255, 0.2);
     background: rgba(255, 255, 255, 0.05);
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .chip:hover {
+    transform: translateY(-1px);
+  }
+
+  .chip img {
+    border-radius: 4px;
+  }
+
+  .chip-fallback-icon {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.5);
   }
 
   .chip-info {
@@ -665,6 +777,11 @@ const factsJson = digimon
   .chip-field {
     color: var(--secondary);
     border-color: rgba(255, 204, 0, 0.4);
+  }
+
+  .chip-field:hover {
+    border-color: rgba(255, 204, 0, 0.6);
+    box-shadow: 0 4px 14px rgba(255, 204, 0, 0.12);
   }
 
   .skill-list {
@@ -683,29 +800,58 @@ const factsJson = digimon
   }
 
   .skill-item {
-    background: var(--card-bg);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 12px;
-    padding: 14px 16px;
+    background: linear-gradient(160deg, rgba(21, 27, 46, 0.95), rgba(13, 20, 42, 0.95));
+    border: 1px solid rgba(15, 98, 254, 0.3);
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    transition: border-color 0.2s ease, transform 0.2s ease;
+    overflow-wrap: break-word;
+  }
+
+  .skill-item:hover {
+    border-color: rgba(255, 204, 0, 0.45);
+    transform: translateY(-2px);
+  }
+
+  .skill-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .skill-icon {
+    color: var(--secondary);
+    font-size: 20px;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .skill-titles {
+    min-width: 0;
   }
 
   .skill-name {
     font-weight: 800;
-    color: var(--secondary);
-    font-size: 15px;
+    color: #fff;
+    font-size: 15.5px;
+    line-height: 1.35;
   }
 
   .skill-trans {
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.5);
+    font-size: 12.5px;
+    color: #8fb8ff;
     font-style: italic;
+    margin-top: 2px;
   }
 
   .skill-desc {
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.7);
-    margin-top: 4px;
-    line-height: 1.5;
+    font-size: 13.5px;
+    color: rgba(255, 255, 255, 0.72);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    line-height: 1.65;
   }
 
   .evo-grid {
@@ -725,6 +871,7 @@ const factsJson = digimon
 
   .evo-name {
     font-size: 13px;
+    overflow-wrap: break-word;
   }
 
   .evo-cond {
@@ -732,6 +879,7 @@ const factsJson = digimon
     color: rgba(255, 255, 255, 0.5);
     margin-top: 4px;
     line-height: 1.4;
+    overflow-wrap: break-word;
   }
 
   .evo-more {

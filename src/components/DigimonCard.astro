@@ -4,6 +4,7 @@ interface Digimon {
   name: string;
   img: string;
   level: string;
+  nativeLevel?: string;
   href?: string;
 }
 
@@ -26,6 +27,8 @@ const LEVEL_CLASSES: Record<string, string> = {
 };
 
 const levelClass = LEVEL_CLASSES[digimon.level] ?? 'level-Unknown';
+// Taxonomía original: se muestra el nivel nativo (Child, Adult...), no traducido.
+const levelLabel = digimon.nativeLevel ?? digimon.level;
 // URLs estables `/dex/123-slug`; compatibilidad con formato heredado por nombre.
 const detailHref =
   digimon.href ?? (digimon.id != null
@@ -50,7 +53,7 @@ const detailHref =
     <div>
       <div class="digi-name">{digimon.name}</div>
       <div class="digi-meta">
-        <span class={`badge ${levelClass}`}>{digimon.level}</span>
+        <span class={`badge ${levelClass}`} data-level={digimon.nativeLevel ?? digimon.level}>{levelLabel}</span>
         <span class="digi-kind">DIGIMON</span>
       </div>
     </div>

@@ -30,94 +30,60 @@ export function t(lang, key, vars = {}) {
   return node.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`));
 }
 
-/** Nivel Digi-API (nativo o clásico) -> etiqueta visual. */
-const LEVEL_ES = {
-  'Baby I': 'Bebé I',
-  'Baby II': 'Bebé II',
-  Fresh: 'Bebé',
-  'In Training': 'En entrenamiento',
-  Training: 'En entrenamiento',
-  Child: 'Novato',
-  Rookie: 'Novato',
-  Adult: 'Campeón',
-  Champion: 'Campeón',
-  Perfect: 'Ultra',
-  Ultimate: 'Ultra',
-  Mega: 'Mega',
-  Armor: 'Armadura',
-  Hybrid: 'Híbrido',
-  Unknown: 'Desconocido',
-};
-
+/**
+ * TAXONOMÍA DIGIMON: los valores originales de Digi-API se conservan tal cual
+ * en la presentación (niveles, atributos y tipos NO se traducen).
+ * Solo los Fields tienen equivalencias visuales curadas; el resto es original.
+ */
 export function localizeLevel(value, lang) {
-  if (normalizeLang(lang) === 'en') return value ?? 'Unknown';
-  return LEVEL_ES[value] ?? value ?? 'Desconocido';
-}
-
-const ATTR_ES = {
-  Vaccine: 'Vacuna',
-  Data: 'Datos',
-  Virus: 'Virus',
-  Free: 'Libre',
-  Variable: 'Variable',
-  Unknown: 'Desconocido',
-  'No Data': 'Sin datos',
-};
-
-export function localizeAttr(value, lang) {
-  if (normalizeLang(lang) === 'en') return value ?? 'Unknown';
-  return ATTR_ES[value] ?? value ?? 'Desconocido';
-}
-
-/** Tipos con equivalencia razonable; si no hay, se muestra el original. */
-const TYPE_ES = {
-  Reptile: 'Reptil',
-  Mammal: 'Mamífero',
-  Dragon: 'Dragón',
-  Bird: 'Ave',
-  Beast: 'Bestia',
-  Insect: 'Insecto',
-  Aquatic: 'Acuático',
-  Plant: 'Planta',
-  Machine: 'Máquina',
-  Holy: 'Sagrado',
-  Demon: 'Demonio',
-  Warrior: 'Guerrero',
-  Fairy: 'Hada',
-  Ghost: 'Fantasma',
-  Rock: 'Roca',
-  Fire: 'Fuego',
-  Ice: 'Hielo',
-  Electric: 'Eléctrico',
-  Dark: 'Oscuro',
-  Light: 'Luz',
-  Birdman: 'Hombre ave',
-  Cyborg: 'Cíborg',
-  Mutant: 'Mutante',
-  Undead: 'No muerto',
-  Ancient: 'Antiguo',
-};
-
-export function localizeType(value, lang) {
-  if (normalizeLang(lang) === 'en') return value ?? '';
-  return TYPE_ES[value] ?? value ?? '';
-}
-
-/** Fields: se conserva el nombre oficial (sin terminología inventada). */
-export function localizeField(value) {
+  void lang;
   return value ?? '';
 }
 
+export function localizeAttr(value, lang) {
+  void lang;
+  return value ?? '';
+}
+
+export function localizeType(value, lang) {
+  void lang;
+  return value ?? '';
+}
+
+const FIELD_ES = {
+  'Metal Empire': 'Imperio Metálico',
+  'Nature Spirits': 'Espíritus de la Naturaleza',
+  'Nightmare Soldiers': 'Soldados de Pesadilla',
+  "Dragon's Roar": 'Rugido del Dragón',
+  'Dark Area': 'Área Oscura',
+};
+
+/** Fields: traducción visual solo con equivalencia clara; si no, original. */
+export function localizeField(value, lang) {
+  if (normalizeLang(lang) === 'en') return value ?? '';
+  return FIELD_ES[value] ?? value ?? '';
+}
+
+import descriptionsEs from '../data/translations/descriptions.es.json';
+import skillsEs from '../data/translations/skills.es.json';
+
 /**
- * Descripción dinámica: EN muestra el original; ES muestra traducción si
- * existe y si no, el original con aviso discreto (`translated: false`).
+ * Descripción dinámica por ID: EN muestra el original; ES muestra la
+ * traducción local cuando existe (`translated: true`) y si no, el original.
  */
-export function localizeDescription(detail, lang, translations = {}) {
+export function localizeDescription(detail, lang) {
   const original = detail?.description || '';
   if (normalizeLang(lang) === 'en') return { text: original, translated: true };
-  const translated = translations[detail?.id];
-  if (translated) return { text: translated, translated: true };
+  const entry = descriptionsEs[String(detail?.id)];
+  if (entry?.description) return { text: entry.description, translated: true };
   return { text: original, translated: false };
+}
+
+/** Descripción de skill por ID de skill; si no hay, el original (o ''). */
+export function localizeSkillDescription(skill, lang) {
+  const original = skill?.description || '';
+  if (normalizeLang(lang) === 'en') return original;
+  return skillsEs[String(skill?.id)]?.description ?? original;
 }
 
 // ---------- Cliente (solo navegador) ----------

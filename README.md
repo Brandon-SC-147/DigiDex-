@@ -43,6 +43,7 @@ Nueva etapa del proyecto, construida sobre Astro y orientada a convertirse en un
 - Servicio centralizado para acceso a datos.
 - Interfaz orientada a escritorio, tablet y móvil.
 - Selector de idioma ES / EN con persistencia.
+- Taxonomía Digimon original con descripciones ES locales por ID.
 
 ## Evolución planificada
 

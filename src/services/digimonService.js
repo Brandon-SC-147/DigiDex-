@@ -121,6 +121,7 @@ export function normalizeDetail(raw) {
     xAntibody: Boolean(raw.xAntibody),
     description: englishDescription(raw.descriptions),
     skills: (raw.skills ?? []).map((s) => ({
+      id: s.id,
       name: s.skill,
       translation: s.translation ?? '',
       description: s.description ?? '',
