@@ -1,18 +1,23 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { t, normalizeLang } from '../i18n/index.js';
+
+export const prerender = true;
+
+const lang = normalizeLang(Astro.url.searchParams.get('lang'));
 ---
-<Layout title="404 — DigiDex Web">
+<Layout title="404 — DigiDex Web" lang={lang}>
   <main class="dex-page-bg not-found">
     <div class="not-found-inner">
       <div class="not-found-code">404</div>
-      <div class="not-found-msg">Oops. Fuera del Mundo Digital...</div>
-      <div class="not-found-sub">La página que buscas no existe o fue borrada por un Digimon.</div>
+      <div class="not-found-msg" data-i18n="notFound.msg">{t(lang, 'notFound.msg')}</div>
+      <div class="not-found-sub" data-i18n="notFound.sub">{t(lang, 'notFound.sub')}</div>
       <div class="not-found-actions">
         <a class="btn btn-primary" href="/">
-          <span class="material-icons">home</span> Ir al inicio
+          <span class="material-icons">home</span> <span data-i18n="notFound.home">{t(lang, 'notFound.home')}</span>
         </a>
         <a class="btn btn-outline" href="/dex">
-          <span class="material-icons">pets</span> Explorar el Dex
+          <span class="material-icons">pets</span> <span data-i18n="notFound.dex">{t(lang, 'notFound.dex')}</span>
         </a>
       </div>
     </div>

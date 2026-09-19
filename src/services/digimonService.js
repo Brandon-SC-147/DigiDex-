@@ -43,6 +43,28 @@ export const LEVEL_ORDER = [
   'Unknown',
 ];
 
+/** Taxonomías nativas de Digi-API (referencia estable, verificada contra /level y /attribute). */
+export const NATIVE_LEVELS = [
+  'Baby I',
+  'Baby II',
+  'Child',
+  'Adult',
+  'Perfect',
+  'Ultimate',
+  'Armor',
+  'Hybrid',
+  'Unknown',
+];
+export const NATIVE_ATTRIBUTES = [
+  'Data',
+  'Vaccine',
+  'Virus',
+  'Free',
+  'Variable',
+  'Unknown',
+  'No Data',
+];
+
 export function displayLevel(native) {
   return LEVEL_DISPLAY[native] ?? native ?? 'Unknown';
 }
@@ -99,6 +121,7 @@ export function normalizeDetail(raw) {
     xAntibody: Boolean(raw.xAntibody),
     description: englishDescription(raw.descriptions),
     skills: (raw.skills ?? []).map((s) => ({
+      id: s.id,
       name: s.skill,
       translation: s.translation ?? '',
       description: s.description ?? '',
@@ -118,93 +141,144 @@ export function normalizeDetail(raw) {
   };
 }
 
-/** Ficha completa por id (usa caché del build cuando existe). */
+/** Ficha completa por id (usa caché en memoria cuando existe). */
 export async function getDigimonById(id) {
-  const cached = detailRawCache.get(Number(id) ?? id) ?? detailRawCache.get(id);
-  const raw = cached ?? (await fetchWithTimeout(`${BASE_URL}/digimon/${id}`));
+  const key = Number(id);
+  const cached = detailRawCache.get(key) ?? detailRawCache.get(id);
+  if (cached) return normalizeDetail(cached);
+  const raw = await fetchWithTimeout(`${BASE_URL}/digimon/${id}`);
+  if (raw?.id != null) detailRawCache.set(raw.id, raw);
   return normalizeDetail(raw);
 }
 
 /** Ficha por nombre (búsqueda exacta insensible a mayúsculas). */
 export async function getDigimonByName(name) {
+  const hit = await resolveLegacySlug(name);
+  if (!hit) return null;
+  return getDigimonById(hit.id);
+}
+
+/** Resuelve un nombre heredado a { id, name } con 1 sola petición (sin detalle). */
+export async function resolveLegacySlug(name) {
   const data = await fetchWithTimeout(
     `${BASE_URL}/digimon?name=${encodeURIComponent(name)}&pageSize=20`,
   );
   const items = data?.content ?? [];
-  const exact = items.find((i) => i.name.toLowerCase() === String(name).toLowerCase()) ?? items[0];
+  const exact =
+    items.find((i) => String(i.name).toLowerCase() === String(name).toLowerCase()) ?? items[0];
   if (!exact) return null;
-  return getDigimonById(exact.id);
+  return { id: exact.id, name: exact.name };
 }
 
-/** Recorre la lista paginada (`pageSize` alto = pocas peticiones). */
-async function fetchAllList(pageSize = 200) {
-  const out = [];
-  let page = 0;
-  for (;;) {
-    const data = await fetchWithTimeout(`${BASE_URL}/digimon?page=${page}&pageSize=${pageSize}`);
-    const items = data?.content ?? [];
-    out.push(...items);
-    const pageable = data?.pageable;
-    if (!pageable?.nextPage || items.length === 0) break;
-    page += 1;
-  }
-  return out;
-}
-
-/** Pool simple para limitar concurrencia en el build. */
-async function pool(items, size, fn) {
-  const results = new Array(items.length);
-  let i = 0;
-  async function worker() {
-    while (i < items.length) {
-      const idx = i++;
-      try {
-        results[idx] = await fn(items[idx], idx);
-      } catch {
-        results[idx] = null;
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
-  return results;
-}
-
-let catalogCache = null;
-/** Detalles crudos por id (se llena durante getCatalog; evita refetch en [name].astro). */
+/** Detalles crudos por id (caché en memoria: build y sesión del navegador). */
 export const detailRawCache = new Map();
 
-/**
- * Catálogo ligero para el índice: [{ id, name, img, level, nativeLevel, attributes }].
- * Se cachea en memoria para reutilizar entre páginas durante el build.
- */
-export async function getCatalog() {
-  if (catalogCache) return catalogCache;
-  const list = await fetchAllList();
-  const details = await pool(list, 25, (item) => fetchWithTimeout(`${BASE_URL}/digimon/${item.id}`));
-  for (const raw of details) {
-    if (raw?.id != null) detailRawCache.set(raw.id, raw);
-  }
-  catalogCache = details
-    .filter(Boolean)
-    .map((raw) => {
-      const d = normalizeDetail(raw);
-      return {
-        id: d.id,
-        name: d.name,
-        img: d.img,
-        level: d.level,
-        nativeLevel: d.nativeLevel,
-        attributes: d.attributes,
-      };
-    })
-    .sort((a, b) => a.name.localeCompare(b.name));
-  return catalogCache;
+/** Slug descriptivo para URLs estables `/dex/123-nombre`. */
+export function slugify(name) {
+  return String(name ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
 }
 
-/** Detalle completo (usa el catálogo cacheado cuando puede). */
-export async function getDetailByName(name) {
-  const catalog = await getCatalog().catch(() => null);
-  const hit = catalog?.find((c) => c.name.toLowerCase() === String(name).toLowerCase());
-  if (hit) return getDigimonById(hit.id);
-  return getDigimonByName(name);
+/** URL estable de ficha: el ID identifica, el slug solo describe (SEO). */
+export function detailHref(d) {
+  return `/dex/${d.id}-${slugify(d.name)}`;
+}
+
+/** Extrae el ID de un slug `/dex/123-nombre`; null si es formato heredado. */
+export function parseSlugId(slug) {
+  const m = String(slug ?? '').match(/^(\d+)(?:-|$)/);
+  return m ? Number(m[1]) : null;
+}
+
+/** Ficha ligera para tarjetas del catálogo. */
+function toCard(detail) {
+  return {
+    id: detail.id,
+    name: detail.name,
+    img: detail.img,
+    level: detail.level,
+    nativeLevel: detail.nativeLevel,
+    attributes: detail.attributes,
+    href: detailHref(detail),
+  };
+}
+
+/**
+ * Página real del servidor Digi-API.
+ * `page` es base 0 (la UI muestra base 1). Devuelve totales reales, sin hardcodear.
+ * @returns {Promise<{ items, currentPage, totalPages, totalElements, pageSize }>}
+ */
+export async function getDigimonPage({
+  page = 0,
+  pageSize = 24,
+  name = '',
+  level = '',
+  attribute = '',
+  xAntibody = '',
+} = {}) {
+  const q = new URLSearchParams();
+  q.set('page', String(Math.max(0, page)));
+  q.set('pageSize', String(pageSize));
+  if (name.trim()) q.set('name', name.trim());
+  if (level) q.set('level', level);
+  if (attribute) q.set('attribute', attribute);
+  if (xAntibody === true || xAntibody === 'true') q.set('xAntibody', 'true');
+  else if (xAntibody === false || xAntibody === 'false') q.set('xAntibody', 'false');
+
+  const data = await fetchWithTimeout(`${BASE_URL}/digimon?${q}`);
+  const list = data?.content ?? [];
+  const pageable = data?.pageable ?? {};
+  const details = await Promise.all(
+    list.map((item) =>
+      getDigimonById(item.id).catch(() => ({
+        id: item.id,
+        name: item.name,
+        img: item.image ?? '/favicon.svg',
+        level: 'Unknown',
+        attributes: [],
+      })),
+    ),
+  );
+  return {
+    items: details.map(toCard),
+    currentPage: pageable.currentPage ?? Math.max(0, page),
+    totalPages: pageable.totalPages ?? 1,
+    totalElements: pageable.totalElements ?? details.length,
+    pageSize,
+  };
+}
+
+/** Total de registros según Digi-API (1 petición ligera, sin descargar nada). */
+export async function getTotalCount() {
+  const data = await fetchWithTimeout(`${BASE_URL}/digimon?page=0&pageSize=1`);
+  return data?.pageable?.totalElements ?? 0;
+}
+
+const levelListCache = new Map();
+
+/** Tarjetas del mismo nivel nativo (para "relacionados" en la ficha). */
+export async function getSameLevel(nativeLevel, excludeId, limit = 6) {
+  if (!levelListCache.has(nativeLevel)) {
+    const data = await fetchWithTimeout(
+      `${BASE_URL}/digimon?level=${encodeURIComponent(nativeLevel)}&page=0&pageSize=${limit + 1}`,
+    );
+    levelListCache.set(nativeLevel, data?.content ?? []);
+  }
+  return (levelListCache.get(nativeLevel) ?? [])
+    .filter((i) => i.id !== excludeId)
+    .slice(0, limit)
+    .map((i) => ({
+      id: i.id,
+      name: i.name,
+      img: i.image ?? '/favicon.svg',
+      level: displayLevel(nativeLevel),
+      nativeLevel,
+      attributes: [],
+      href: `/dex/${i.id}-${slugify(i.name)}`,
+    }));
 }

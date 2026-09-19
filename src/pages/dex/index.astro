@@ -2,46 +2,52 @@
 import Layout from '../../layouts/Layout.astro';
 import DigimonFilter from '../../components/DigimonFilter.astro';
 import DigimonCard from '../../components/DigimonCard.astro';
-import { getCatalog, LEVEL_ORDER } from '../../services/digimonService.js';
+import {
+  getDigimonPage,
+  NATIVE_LEVELS,
+  NATIVE_ATTRIBUTES,
+} from '../../services/digimonService.js';
+import { t, normalizeLang, currentLang } from '../../i18n/index.js';
 
-let digimons = [];
+export const prerender = true;
+
+const lang = normalizeLang(Astro.url.searchParams.get('lang'));
+
+const PAGE_SIZE = 24;
+
+let firstPage = { items: [], currentPage: 0, totalPages: 1, totalElements: 0 };
 let buildError = false;
 try {
-  digimons = await getCatalog();
+  firstPage = await getDigimonPage({ page: 0, pageSize: PAGE_SIZE });
 } catch {
   buildError = true;
 }
 
-const levels = LEVEL_ORDER.filter((l) => digimons.some((d) => d.level === l));
-const attributes = [...new Set(digimons.flatMap((d) => d.attributes))].sort();
-const PAGE_SIZE = 24;
-const initialVisible = digimons.slice(0, PAGE_SIZE);
+const levelOptions = NATIVE_LEVELS.map((native) => ({ value: native }));
 ---
 <Layout
-  title="Catálogo — DigiDex Web"
-  description="Catálogo de Digimon: busca por nombre, filtra por nivel y atributo, y consulta la ficha completa con evoluciones y skills."
+  title={t(lang, 'dex.records') + ' — DigiDex Web'}
+  description={t(lang, 'dex.desc')}
+  lang={lang}
 >
   <main class="dex-page-bg">
     <div class="container-xl">
       <div class="page-hero">
-        <div class="hero-kicker">CATÁLOGO DIGITAL</div>
+        <div class="hero-kicker" data-i18n="dex.kicker">{t(lang, 'dex.kicker')}</div>
         <h1 class="hero-title">
-          <span class="text-digimon-gradient">Explora</span> el Mundo Digital
+          <span class="text-digimon-gradient" data-i18n="dex.titleA">{t(lang, 'dex.titleA')}</span> <span data-i18n="dex.titleB">{t(lang, 'dex.titleB')}</span>
         </h1>
-        <p class="hero-desc">
-          Consulta los Digimon del catálogo, filtra por nivel y atributo, y abre la ficha
-          completa de cada criatura digital.
-        </p>
+        <p class="hero-desc" data-i18n="dex.desc">{t(lang, 'dex.desc')}</p>
       </div>
 
       <div class="dex-layout">
         <aside class="dex-sidebar">
           <div class="sticky">
-            <DigimonFilter levels={levels} attributes={attributes} />
+            <DigimonFilter levels={levelOptions} attributes={NATIVE_ATTRIBUTES} lang={lang} />
 
             <section class="counter-card">
-              <div class="counter-value" id="dex-count">{digimons.length}</div>
-              <div class="counter-label">DIGIMONS ENCONTRADOS</div>
+              <div class="counter-value" id="dex-count">{firstPage.totalElements}</div>
+              <div class="counter-label" data-i18n="dex.found">{t(lang, 'dex.found')}</div>
             </section>
           </div>
         </aside>
@@ -49,91 +55,96 @@ const initialVisible = digimons.slice(0, PAGE_SIZE);
         <section class="dex-results" id="dex-results">
           <div class="results-toolbar">
             <span class="material-icons toolbar-icon">storage</span>
-            <span class="results-title">Registros del Dex</span>
-            <span class="results-meta" id="dex-meta">{digimons.length > 0 ? `Página 1 de ${Math.ceil(digimons.length / PAGE_SIZE)} · ${digimons.length} totales` : ''}</span>
+            <span class="results-title" data-i18n="dex.records">{t(lang, 'dex.records')}</span>
+            <span class="results-meta" id="dex-meta"></span>
           </div>
 
-          {buildError ? (
-            <div id="dex-error" class="error-card">
-              <div class="state-block">
-                <span class="material-icons state-icon error-icon">cloud_off</span>
-                <div class="state-heading">No se pudo conectar con la API</div>
-                <div class="state-sub">Revisa tu conexión o inténtalo de nuevo en unos segundos.</div>
-                <button class="btn btn-outline" id="dex-retry" type="button">
-                  <span class="material-icons">refresh</span> Reintentar
-                </button>
-              </div>
+          <div id="dex-error" class="error-card" hidden>
+            <div class="state-block">
+              <span class="material-icons state-icon error-icon">cloud_off</span>
+              <div class="state-heading" data-i18n="dex.errT">{t(lang, 'dex.errT')}</div>
+              <div class="state-sub" data-i18n="dex.errS">{t(lang, 'dex.errS')}</div>
+              <button class="btn btn-outline" id="dex-retry" type="button">
+                <span class="material-icons">refresh</span> <span data-i18n="dex.retry">{t(lang, 'dex.retry')}</span>
+              </button>
             </div>
-          ) : (
-            <div>
-              <div id="dex-empty" class="empty-state" hidden>
-                <span class="material-icons state-icon">search_off</span>
-                <div class="state-heading">No se encontraron resultados</div>
-                <div class="state-sub">Prueba con otro nombre o quita los filtros.</div>
-              </div>
+          </div>
 
-              <div id="dex-grid" class="dex-grid">
-                {initialVisible.map((d) => <DigimonCard digimon={d} />)}
-              </div>
+          <div id="dex-loading" class="dex-grid" hidden aria-live="polite"></div>
 
-              <nav class="pagination" id="dex-pagination" aria-label="Paginación del Dex"></nav>
-              <noscript>
-                <p class="noscript-note">Activa JavaScript para filtrar y paginar el catálogo completo.</p>
-              </noscript>
-            </div>
-          )}
+          <div id="dex-empty" class="empty-state" hidden>
+            <span class="material-icons state-icon">search_off</span>
+            <div class="state-heading" data-i18n="dex.emptyT">{t(lang, 'dex.emptyT')}</div>
+            <div class="state-sub" data-i18n="dex.emptyS">{t(lang, 'dex.emptyS')}</div>
+          </div>
+
+          <div id="dex-grid" class="dex-grid">
+            {firstPage.items.map((d) => <DigimonCard digimon={d} />)}
+          </div>
+
+          <nav class="pagination" id="dex-pagination" aria-label={t(lang, 'dex.pagination')} data-i18n-aria="dex.pagination"></nav>
+          <noscript>
+            <p class="noscript-note" data-i18n="dex.noscript">{t(lang, 'dex.noscript')}</p>
+          </noscript>
         </section>
       </div>
     </div>
   </main>
 
-  <script type="application/json" id="dex-data" set:html={JSON.stringify(digimons)}></script>
+  <script type="application/json" id="dex-first-page" set:html={JSON.stringify(firstPage)}></script>
 </Layout>
 
 <script>
-  const LEVEL_CLASSES = {
-    Fresh: 'level-Fresh',
-    'In Training': 'level-InTraining',
-    Rookie: 'level-Rookie',
-    Champion: 'level-Champion',
-    Ultimate: 'level-Ultimate',
-    Mega: 'level-Mega',
-    Armor: 'level-Armor',
-    Hybrid: 'level-Hybrid',
-    Unknown: 'level-Unknown',
-  };
-  const LEVEL_ORDER = ['Fresh', 'In Training', 'Rookie', 'Champion', 'Ultimate', 'Mega', 'Armor', 'Hybrid', 'Unknown'];
+  import { getDigimonPage, getLevelClass, NATIVE_LEVELS, NATIVE_ATTRIBUTES } from '../../services/digimonService.js';
+  import { t, currentLang, localizeLevel, localizeAttr } from '../../i18n/index.js';
+
   const PAGE_SIZE = 24;
+  let lang = currentLang();
+  let lastData = null;
 
   const searchInput = document.getElementById('dex-search');
   const levelSelect = document.getElementById('dex-level');
   const attrSelect = document.getElementById('dex-attribute');
-  const sortSelect = document.getElementById('dex-sort');
+  const xantiSelect = document.getElementById('dex-xantibody');
   const clearBtn = document.getElementById('dex-clear');
   const grid = document.getElementById('dex-grid');
+  const loadingEl = document.getElementById('dex-loading');
   const emptyEl = document.getElementById('dex-empty');
+  const errorEl = document.getElementById('dex-error');
   const countEl = document.getElementById('dex-count');
   const metaEl = document.getElementById('dex-meta');
   const paginationEl = document.getElementById('dex-pagination');
   const retryBtn = document.getElementById('dex-retry');
-  retryBtn?.addEventListener('click', () => location.reload());
+  retryBtn?.addEventListener('click', () => loadPage());
 
-  let digimons = [];
+  let firstPage = { items: [], currentPage: 0, totalPages: 1, totalElements: 0 };
   try {
-    digimons = JSON.parse(document.getElementById('dex-data')?.textContent || '[]');
-  } catch { digimons = []; }
+    firstPage = JSON.parse(document.getElementById('dex-first-page')?.textContent || '{}');
+  } catch { /* se recarga desde la API */ }
 
+  // Estado desde la URL. `page` es base 1 para el usuario, base 0 para la API.
   const params = new URLSearchParams(location.search);
-  if (searchInput && params.get('q')) searchInput.value = params.get('q');
+  if (searchInput && params.get('name')) searchInput.value = params.get('name');
   if (levelSelect && params.get('level')) levelSelect.value = params.get('level');
   if (attrSelect && params.get('attribute')) attrSelect.value = params.get('attribute');
-  if (sortSelect && params.get('sort')) sortSelect.value = params.get('sort');
-  let page = Math.max(0, (parseInt(params.get('page') || '1', 10) || 1) - 1);
+  if (xantiSelect && params.get('xAntibody')) xantiSelect.value = params.get('xAntibody');
+  let uiPage = Math.max(1, parseInt(params.get('page') || '1', 10) || 1);
 
   let debounce;
+  let requestId = 0;
 
-  function levelClass(level) {
-    return LEVEL_CLASSES[level] ?? 'level-Unknown';
+  function readFilters() {
+    return {
+      name: searchInput?.value.trim() || '',
+      level: levelSelect?.value || '',
+      attribute: attrSelect?.value || '',
+      xAntibody: xantiSelect?.value || '',
+    };
+  }
+
+  function hasActiveFilters() {
+    const f = readFilters();
+    return Boolean(f.name || f.level || f.attribute || f.xAntibody);
   }
 
   function escapeHtml(value) {
@@ -145,63 +156,54 @@ const initialVisible = digimons.slice(0, PAGE_SIZE);
       .replaceAll("'", '&#39;');
   }
 
-  function cardHtml(digimon) {
-    const href = `/dex/${encodeURIComponent(digimon.name)}`;
-    const attrs = (digimon.attributes || []).slice(0, 2).map((a) => `<span class="digi-attr">${escapeHtml(a)}</span>`).join('');
+  function cardHtml(d) {
+    const href = d.href || `/dex/${d.id}`;
+    const levelLabel = localizeLevel(d.nativeLevel ?? d.level, lang);
+    const attrs = (d.attributes || []).slice(0, 2).map((a) => `<span class="digi-attr">${escapeHtml(localizeAttr(a, lang))}</span>`).join('');
     return `
       <article class="digi-card hover-lift">
         <div class="img-container">
-          <img src="${escapeHtml(digimon.img)}" alt="${escapeHtml(digimon.name)}" class="digi-img" loading="lazy" decoding="async" width="240" height="180" onerror="this.onerror=null;this.src='/favicon.svg'" />
+          <img src="${escapeHtml(d.img)}" alt="${escapeHtml(d.name)}" class="digi-img" loading="lazy" decoding="async" width="240" height="180" onerror="this.onerror=null;this.src='/favicon.svg'" />
           <div class="scan-line"></div>
         </div>
         <div class="digi-body">
           <div>
-            <div class="digi-name">${escapeHtml(digimon.name)}</div>
+            <div class="digi-name">${escapeHtml(d.name)}</div>
             <div class="digi-meta">
-              <span class="badge ${levelClass(digimon.level)}">${escapeHtml(digimon.level)}</span>
-              <span class="digi-kind">DIGIMON</span>
+              <span class="badge ${escapeHtml(getLevelClass(d.level))}">${escapeHtml(levelLabel)}</span>
+              <span class="digi-kind">${escapeHtml(t(lang, 'dex.digimonKind'))}</span>
             </div>
             ${attrs ? `<div class="digi-attrs">${attrs}</div>` : ''}
           </div>
           <a href="${href}" class="btn-text digi-link">
-            Ver ficha <span class="material-icons">arrow_forward</span>
+            ${escapeHtml(t(lang, 'dex.viewFile'))} <span class="material-icons">arrow_forward</span>
           </a>
         </div>
       </article>`;
   }
 
-  function getFiltered() {
-    const q = (searchInput?.value || '').trim().toLowerCase();
-    const level = levelSelect?.value || '';
-    const attr = attrSelect?.value || '';
-    const sort = sortSelect?.value || 'name-asc';
-    const filtered = digimons.filter((d) => {
-      if (q && !d.name.toLowerCase().includes(q)) return false;
-      if (level && d.level !== level) return false;
-      if (attr && !(d.attributes || []).includes(attr)) return false;
-      return true;
-    });
-    if (sort === 'name-desc') filtered.sort((a, b) => b.name.localeCompare(a.name));
-    else if (sort === 'level') filtered.sort((a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level) || a.name.localeCompare(b.name));
-    else filtered.sort((a, b) => a.name.localeCompare(b.name));
-    return filtered;
+  function skeletonHtml() {
+    return Array.from({ length: 8 })
+      .map(() => '<div class="digi-card skeleton-card" aria-hidden="true"><div class="img-container"></div><div class="digi-body"></div></div>')
+      .join('');
   }
 
-  function syncUrl(totalPages) {
+  function syncUrl() {
+    const f = readFilters();
     const next = new URLSearchParams();
-    if (searchInput?.value.trim()) next.set('q', searchInput.value.trim());
-    if (levelSelect?.value) next.set('level', levelSelect.value);
-    if (attrSelect?.value) next.set('attribute', attrSelect.value);
-    if (sortSelect?.value && sortSelect.value !== 'name-asc') next.set('sort', sortSelect.value);
-    if (page > 0) next.set('page', String(page + 1));
+    if (f.name) next.set('name', f.name);
+    if (f.level) next.set('level', f.level);
+    if (f.attribute) next.set('attribute', f.attribute);
+    if (f.xAntibody) next.set('xAntibody', f.xAntibody);
+    if (uiPage > 1) next.set('page', String(uiPage));
     history.replaceState(null, '', next.size ? `?${next}` : location.pathname);
   }
 
   function pageWindow(current, total) {
-    const windowSize = 5;
-    let start = Math.max(0, Math.min(current - 2, total - windowSize));
-    const end = Math.min(total, start + windowSize);
-    start = Math.max(0, end - windowSize);
+    const size = 5;
+    let start = Math.max(0, Math.min(current - 2, total - size));
+    const end = Math.min(total, start + size);
+    start = Math.max(0, end - size);
     const out = [];
     for (let i = start; i < end; i++) out.push(i);
     return out;
@@ -213,63 +215,135 @@ const initialVisible = digimons.slice(0, PAGE_SIZE);
       paginationEl.innerHTML = '';
       return;
     }
-    const nums = pageWindow(page, totalPages).map((i) =>
-      `<button type="button" class="page-btn${i === page ? ' active' : ''}" data-page="${i}" ${i === page ? 'aria-current="page"' : ''}>${i + 1}</button>`,
-    ).join('');
+    const current = uiPage - 1;
+    const nums = pageWindow(current, totalPages)
+      .map((i) => `<button type="button" class="page-btn${i === current ? ' active' : ''}" data-page="${i + 1}" ${i === current ? 'aria-current="page"' : ''}>${i + 1}</button>`)
+      .join('');
     paginationEl.innerHTML = `
-      <button type="button" class="page-btn page-nav" data-page="${page - 1}" ${page === 0 ? 'disabled' : ''} aria-label="Página anterior">
+      <button type="button" class="page-btn page-nav" data-page="${uiPage - 1}" ${uiPage <= 1 ? 'disabled' : ''} aria-label="${escapeHtml(t(lang, 'dex.prevPage'))}">
         <span class="material-icons">chevron_left</span>
       </button>
       ${nums}
-      <button type="button" class="page-btn page-nav" data-page="${page + 1}" ${page >= totalPages - 1 ? 'disabled' : ''} aria-label="Página siguiente">
+      <button type="button" class="page-btn page-nav" data-page="${uiPage + 1}" ${uiPage >= totalPages ? 'disabled' : ''} aria-label="${escapeHtml(t(lang, 'dex.nextPage'))}">
         <span class="material-icons">chevron_right</span>
       </button>`;
     paginationEl.querySelectorAll('[data-page]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const p = parseInt(btn.dataset.page, 10);
-        if (!Number.isNaN(p)) {
-          page = p;
-          applyFilters(false);
+        if (!Number.isNaN(p) && p >= 1) {
+          uiPage = p;
+          loadPage();
           document.getElementById('dex-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       });
     });
   }
 
-  function applyFilters(resetPage = true) {
-    if (!grid) return;
-    if (resetPage) page = 0;
-    const filtered = getFiltered();
-    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-    if (page > totalPages - 1) page = totalPages - 1;
-    const visible = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
-
-    if (countEl) countEl.textContent = String(filtered.length);
-    if (metaEl) metaEl.textContent = filtered.length
-      ? `Página ${page + 1} de ${totalPages} · ${filtered.length} resultados`
+  function render(data) {
+    lastData = data;
+    const totalPages = Math.max(1, data.totalPages || 1);
+    if (uiPage > totalPages) uiPage = totalPages;
+    if (countEl) countEl.textContent = String(data.totalElements ?? 0);
+    if (metaEl) metaEl.textContent = (data.totalElements ?? 0) > 0
+      ? t(lang, 'dex.meta', { page: uiPage, pages: totalPages, count: data.totalElements })
       : '';
-    if (emptyEl) emptyEl.hidden = filtered.length > 0;
-    grid.innerHTML = visible.map(cardHtml).join('');
+    const hasResults = (data.items?.length ?? 0) > 0;
+    if (emptyEl) emptyEl.hidden = hasResults || !errorEl.hidden;
+    if (grid) {
+      grid.hidden = !hasResults;
+      grid.innerHTML = (data.items || []).map(cardHtml).join('');
+    }
     renderPagination(totalPages);
-    syncUrl(totalPages);
+    syncUrl();
+  }
+
+  async function loadPage() {
+    const myRequest = ++requestId;
+    if (errorEl) errorEl.hidden = true;
+    if (emptyEl) emptyEl.hidden = true;
+    if (grid) grid.hidden = true;
+    if (loadingEl) {
+      loadingEl.hidden = false;
+      loadingEl.innerHTML = skeletonHtml();
+    }
+    try {
+      const f = readFilters();
+      const data = await getDigimonPage({
+        page: uiPage - 1,
+        pageSize: PAGE_SIZE,
+        name: f.name,
+        level: f.level,
+        attribute: f.attribute,
+        xAntibody: f.xAntibody,
+      });
+      if (myRequest !== requestId) return;
+      if (loadingEl) loadingEl.hidden = true;
+      render(data);
+    } catch (err) {
+      if (myRequest !== requestId) return;
+      console.error('[DigiDex] Error cargando página:', err);
+      if (loadingEl) loadingEl.hidden = true;
+      if (errorEl) errorEl.hidden = false;
+      if (emptyEl) emptyEl.hidden = true;
+    }
+  }
+
+  function rebuildFilterOptions() {
+    if (levelSelect) {
+      const current = levelSelect.value;
+      levelSelect.innerHTML =
+        `<option value="">${escapeHtml(t(lang, 'filter.allLevels'))}</option>` +
+        NATIVE_LEVELS.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(localizeLevel(n, lang))}</option>`).join('');
+      levelSelect.value = current;
+    }
+    if (attrSelect) {
+      const current = attrSelect.value;
+      attrSelect.innerHTML =
+        `<option value="">${escapeHtml(t(lang, 'filter.allAttr'))}</option>` +
+        NATIVE_ATTRIBUTES.map((a) => `<option value="${escapeHtml(a)}">${escapeHtml(localizeAttr(a, lang))}</option>`).join('');
+      attrSelect.value = current;
+    }
+    const xFirst = xantiSelect?.querySelector('option[value=""]');
+    if (xFirst) xFirst.textContent = t(lang, 'filter.allX');
+    const xTrue = xantiSelect?.querySelector('option[value="true"]');
+    if (xTrue) xTrue.textContent = t(lang, 'filter.carriers');
+    const xFalse = xantiSelect?.querySelector('option[value="false"]');
+    if (xFalse) xFalse.textContent = t(lang, 'filter.noX');
   }
 
   searchInput?.addEventListener('input', () => {
     clearTimeout(debounce);
-    debounce = setTimeout(() => applyFilters(true), 200);
+    debounce = setTimeout(() => {
+      uiPage = 1;
+      loadPage();
+    }, 350);
   });
-  levelSelect?.addEventListener('change', () => applyFilters(true));
-  attrSelect?.addEventListener('change', () => applyFilters(true));
-  sortSelect?.addEventListener('change', () => applyFilters(true));
+  levelSelect?.addEventListener('change', () => { uiPage = 1; loadPage(); });
+  attrSelect?.addEventListener('change', () => { uiPage = 1; loadPage(); });
+  xantiSelect?.addEventListener('change', () => { uiPage = 1; loadPage(); });
   clearBtn?.addEventListener('click', () => {
     if (searchInput) searchInput.value = '';
     if (levelSelect) levelSelect.value = '';
     if (attrSelect) attrSelect.value = '';
-    if (sortSelect) sortSelect.value = 'name-asc';
-    applyFilters(true);
+    if (xantiSelect) xantiSelect.value = '';
+    uiPage = 1;
+    loadPage();
   });
 
-  if (grid) applyFilters(false);
+  // Hidratación: si la URL trae estado distinto al SSR, se carga desde la API.
+  if (grid && (hasActiveFilters() || uiPage > 1)) {
+    loadPage();
+  } else if (grid) {
+    render(firstPage);
+  }
+
+  // Cambio de idioma: re-render sin refetch (los valores nativos se conservan).
+  window.addEventListener('digidex:lang', (e) => {
+    lang = (e.detail && e.detail.lang) || currentLang();
+    rebuildFilterOptions();
+    if (lastData) render(lastData);
+    else if (grid) render(firstPage);
+  });
 </script>
 
 <style>
@@ -443,6 +517,17 @@ const initialVisible = digimons.slice(0, PAGE_SIZE);
     border-radius: 999px;
     border: 1px solid rgba(45, 226, 230, 0.45);
     color: var(--info);
+  }
+
+  .skeleton-card {
+    min-height: 280px;
+    background: rgba(255, 255, 255, 0.04);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 1; }
   }
 
   .pagination {

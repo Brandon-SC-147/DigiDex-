@@ -1,33 +1,42 @@
 ---
 /**
- * Digivice Radar — búsqueda por nombre, filtros por nivel/atributo y orden.
+ * Digivice Radar — búsqueda por nombre y filtros de servidor.
  * Los ids son el contrato con el script de `src/pages/dex/index.astro`:
  * - `#dex-search` (input)
- * - `#dex-level` (select)
+ * - `#dex-level` (select, valor = nivel nativo Digi-API)
  * - `#dex-attribute` (select)
- * - `#dex-sort` (select)
+ * - `#dex-xantibody` (select: "", "true", "false")
  * - `#dex-clear` (button)
  */
-interface Props {
-  levels?: string[];
-  attributes?: string[];
+import { t, normalizeLang, localizeLevel, localizeAttr } from '../i18n/index.js';
+
+interface LevelOption {
+  value: string;
+  label: string;
 }
-const { levels = [], attributes = [] } = Astro.props;
+interface Props {
+  levels?: LevelOption[];
+  attributes?: string[];
+  lang?: string;
+}
+const { levels = [], attributes = [], lang: langProp = 'es' } = Astro.props;
+const lang = normalizeLang(langProp);
 ---
 <section class="filter-card">
   <div class="filter-title">
     <span class="material-icons filter-icon">radar</span>
-    Digivice Radar
+    <span data-i18n="filter.title">{t(lang, 'filter.title')}</span>
   </div>
 
   <div class="filter-group">
-    <label class="filter-label" for="dex-search">Identificar Digimon</label>
+    <label class="filter-label" for="dex-search" data-i18n="filter.searchLabel">{t(lang, 'filter.searchLabel')}</label>
     <div class="input-wrap">
       <span class="material-icons input-icon">search</span>
       <input
         id="dex-search"
         type="search"
-        placeholder="Escribe un nombre..."
+        placeholder={t(lang, 'filter.searchPh')}
+        data-i18n-ph="filter.searchPh"
         autocomplete="off"
         data-test="dex-search"
       />
@@ -35,41 +44,41 @@ const { levels = [], attributes = [] } = Astro.props;
   </div>
 
   <div class="filter-group">
-    <label class="filter-label" for="dex-level">Nivel de evolución</label>
+    <label class="filter-label" for="dex-level" data-i18n="filter.levelLabel">{t(lang, 'filter.levelLabel')}</label>
     <div class="input-wrap">
       <span class="material-icons input-icon">signal_cellular_alt</span>
-      <select id="dex-level">
-        <option value="">Todos los niveles</option>
-        {levels.map((l) => <option value={l}>{l}</option>)}
+      <select id="dex-level" data-level-options>
+        <option value="" data-i18n-opt="filter.allLevels">{t(lang, 'filter.allLevels')}</option>
+        {levels.map((l) => <option value={l.value}>{localizeLevel(l.value, lang)}</option>)}
       </select>
     </div>
   </div>
 
   <div class="filter-group">
-    <label class="filter-label" for="dex-attribute">Atributo</label>
+    <label class="filter-label" for="dex-attribute" data-i18n="filter.attrLabel">{t(lang, 'filter.attrLabel')}</label>
     <div class="input-wrap">
       <span class="material-icons input-icon">category</span>
-      <select id="dex-attribute">
-        <option value="">Todos los atributos</option>
-        {attributes.map((a) => <option value={a}>{a}</option>)}
+      <select id="dex-attribute" data-attr-options>
+        <option value="" data-i18n-opt="filter.allAttr">{t(lang, 'filter.allAttr')}</option>
+        {attributes.map((a) => <option value={a}>{localizeAttr(a, lang)}</option>)}
       </select>
     </div>
   </div>
 
   <div class="filter-group">
-    <label class="filter-label" for="dex-sort">Orden</label>
+    <label class="filter-label" for="dex-xantibody" data-i18n="filter.xLabel">{t(lang, 'filter.xLabel')}</label>
     <div class="input-wrap">
-      <span class="material-icons input-icon">sort</span>
-      <select id="dex-sort">
-        <option value="name-asc">Nombre A–Z</option>
-        <option value="name-desc">Nombre Z–A</option>
-        <option value="level">Por nivel</option>
+      <span class="material-icons input-icon">science</span>
+      <select id="dex-xantibody">
+        <option value="" data-i18n-opt="filter.allX">{t(lang, 'filter.allX')}</option>
+        <option value="true" data-i18n-opt="filter.carriers">{t(lang, 'filter.carriers')}</option>
+        <option value="false" data-i18n-opt="filter.noX">{t(lang, 'filter.noX')}</option>
       </select>
     </div>
   </div>
 
   <button class="btn btn-outline filter-reset" id="dex-clear" type="button">
-    <span class="material-icons">backspace</span> Limpiar
+    <span class="material-icons">backspace</span> <span data-i18n="filter.clear">{t(lang, 'filter.clear')}</span>
   </button>
 </section>
 

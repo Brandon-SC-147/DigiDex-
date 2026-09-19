@@ -1,8 +1,11 @@
 ---
 interface Digimon {
+  id?: number;
   name: string;
   img: string;
   level: string;
+  nativeLevel?: string;
+  href?: string;
 }
 
 interface Props {
@@ -20,10 +23,17 @@ const LEVEL_CLASSES: Record<string, string> = {
   Ultimate: 'level-Ultimate',
   Mega: 'level-Mega',
   Armor: 'level-Armor',
+  Hybrid: 'level-Hybrid',
 };
 
 const levelClass = LEVEL_CLASSES[digimon.level] ?? 'level-Unknown';
-const detailHref = `/dex/${encodeURIComponent(digimon.name)}`;
+// Taxonomía original: se muestra el nivel nativo (Child, Adult...), no traducido.
+const levelLabel = digimon.nativeLevel ?? digimon.level;
+// URLs estables `/dex/123-slug`; compatibilidad con formato heredado por nombre.
+const detailHref =
+  digimon.href ?? (digimon.id != null
+    ? `/dex/${digimon.id}`
+    : `/dex/${encodeURIComponent(digimon.name)}`);
 ---
 <article class="digi-card hover-lift">
   <div class="img-container">
@@ -43,7 +53,7 @@ const detailHref = `/dex/${encodeURIComponent(digimon.name)}`;
     <div>
       <div class="digi-name">{digimon.name}</div>
       <div class="digi-meta">
-        <span class={`badge ${levelClass}`}>{digimon.level}</span>
+        <span class={`badge ${levelClass}`} data-level={digimon.nativeLevel ?? digimon.level}>{levelLabel}</span>
         <span class="digi-kind">DIGIMON</span>
       </div>
     </div>

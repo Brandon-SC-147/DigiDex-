@@ -1,0 +1,920 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import {
+  getDigimonById,
+  getSameLevel,
+  resolveLegacySlug,
+  parseSlugId,
+  slugify,
+  detailHref,
+  LEVEL_CLASSES,
+} from '../../services/digimonService.js';
+import {
+  t,
+  normalizeLang,
+  localizeLevel,
+  localizeAttr,
+  localizeType,
+  localizeField,
+  localizeDescription,
+  localizeSkillDescription,
+} from '../../i18n/index.js';
+
+/**
+ * Ficha SSR bajo demanda (sin getStaticPaths masivo):
+ * - `/dex/123-slug`: el ID identifica (1 sola petición de detalle).
+ * - `/dex/Nombre` heredado: redirect 302 a la URL estable (1 búsqueda ligera).
+ * - Slug descriptivo libre: se canonicaliza, no rompe la navegación.
+ */
+export const prerender = false;
+
+const { slug } = Astro.params;
+const lang = normalizeLang(Astro.url.searchParams.get('lang'));
+
+function esc(s) {
+  return String(s ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
+
+// ---- Rama heredada: redirect dinámico a la URL estable ----
+const slugId = parseSlugId(slug);
+if (slugId == null) {
+  try {
+    const hit = await resolveLegacySlug(slug);
+    if (hit) return Astro.redirect(`/dex/${hit.id}-${slugify(hit.name)}`, 302);
+  } catch {
+    // Sigue al 404 de abajo.
+  }
+}
+
+// ---- Rama detalle: 1 sola petición ----
+let digimon = null;
+let related = [];
+if (slugId != null) {
+  try {
+    digimon = await getDigimonById(slugId);
+  } catch {
+    digimon = null;
+  }
+  if (digimon) {
+    Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600');
+    try {
+      related = await getSameLevel(digimon.nativeLevel, digimon.id, 6);
+    } catch {
+      related = [];
+    }
+  }
+}
+if (!digimon) Astro.response.status = 404;
+
+const levelClass = digimon ? (LEVEL_CLASSES[digimon.level] ?? 'level-Unknown') : 'level-Unknown';
+const badgeClass = 'badge detail-badge ' + levelClass;
+const title = digimon ? digimon.name + ' — DigiDex Web' : t(lang, 'detail.notFoundT') + ' — DigiDex Web';
+const description = digimon
+  ? lang === 'en'
+    ? `${digimon.name} profile (${digimon.level}, ${digimon.attributes.join('/')}). Description, skills and evolutions on DigiDex Web.`
+    : 'Ficha de ' + digimon.name + ' (' + digimon.level + ', ' + digimon.attributes.join('/') + '). Descripción, skills y evoluciones en DigiDex Web.'
+  : t(lang, 'detail.notFoundS');
+const jsonLd = digimon
+  ? JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'CreativeWork',
+      name: digimon.name,
+      image: digimon.img,
+      description: digimon.description || description,
+    })
+  : '';
+
+// Sin navegación por ID contiguo (los ID pueden tener huecos);
+// la navegación vive en las evoluciones. Se conserva el estilo por compatibilidad.
+const navHtml = '';
+const hasNav = false;
+
+function evoCardHtml(e) {
+  const inner =
+    '<div class="img-container evo-img-wrap">' +
+    '<img src="' +
+    esc(e.img || '/favicon.svg') +
+    '" alt="' +
+    esc(e.name) +
+    '" class="digi-img" loading="lazy" decoding="async" width="240" height="140" onerror="this.onerror=null;this.src=\'/favicon.svg\'" />' +
+    '</div>' +
+    '<div class="digi-body"><div class="digi-name evo-name">' +
+    esc(e.name) +
+    '</div>' +
+    (e.condition ? '<div class="evo-cond">' + esc(e.condition) + '</div>' : '') +
+    '</div>';
+  return (
+    '<a class="digi-card hover-lift evo-card" href="/dex/' +
+    e.id +
+    '-' +
+    slugify(e.name) +
+    '">' +
+    inner +
+    '</a>'
+  );
+}
+
+function evoSection(list) {
+  const shown = list.slice(0, 12).map(evoCardHtml).join('');
+  const rest = list.slice(12).map(evoCardHtml).join('');
+  if (!rest) return shown;
+  return (
+    shown +
+    '<details class="evo-more"><summary class="evo-summary">Ver ' +
+    (list.length - 12) +
+    ' más</summary><div class="evo-grid">' +
+    rest +
+    '</div></details>'
+  );
+}
+
+const priorHtml = digimon ? evoSection(digimon.priorEvolutions) : '';
+const nextHtml = digimon ? evoSection(digimon.nextEvolutions) : '';
+const hasPrior = digimon && digimon.priorEvolutions.length > 0;
+const hasNext = digimon && digimon.nextEvolutions.length > 0;
+
+function relatedCardHtml(d) {
+  const cls = LEVEL_CLASSES[d.level] ?? 'level-Unknown';
+  return (
+    '<a class="digi-card hover-lift" href="' +
+    esc(d.href) +
+    '">' +
+    '<div class="img-container">' +
+    '<img src="' +
+    esc(d.img) +
+    '" alt="' +
+    esc(d.name) +
+    '" class="digi-img" loading="lazy" decoding="async" width="240" height="180" onerror="this.onerror=null;this.src=\'/favicon.svg\'" />' +
+    '<div class="scan-line"></div></div>' +
+    '<div class="digi-body"><div>' +
+    '<div class="digi-name">' +
+    esc(d.name) +
+    '</div>' +
+    '<div class="digi-meta"><span class="badge ' +
+    cls +
+    '" data-level="' +
+    esc(d.nativeLevel ?? d.level) +
+    '">' +
+    esc(localizeLevel(d.nativeLevel ?? d.level, lang)) +
+    '</span><span class="digi-kind">DIGIMON</span></div>' +
+    '</div></div></a>'
+  );
+}
+const relatedHtml = related.map(relatedCardHtml).join('');
+const hasRelated = related.length > 0;
+
+function skillHtml(s) {
+  const desc = localizeSkillDescription(s, lang) || t(lang, 'detail.skillNoDesc');
+  return (
+    '<li class="skill-item">' +
+    '<div class="skill-head"><span class="material-icons skill-icon" aria-hidden="true">auto_awesome</span>' +
+    '<div class="skill-titles"><div class="skill-name">' +
+    esc(s.name) +
+    '</div>' +
+    (s.translation ? '<div class="skill-trans">' + esc(s.translation) + '</div>' : '') +
+    '</div></div>' +
+    '<div class="skill-desc">' + esc(desc) + '</div>' +
+    '</li>'
+  );
+}
+const skillsHtml = digimon ? digimon.skills.slice(0, 10).map(skillHtml).join('') : '';
+const restSkillsHtml = digimon ? digimon.skills.slice(10).map(skillHtml).join('') : '';
+const hasSkills = digimon && digimon.skills.length > 0;
+const hasRestSkills = digimon && digimon.skills.length > 10;
+const restSkillsCount = digimon ? Math.max(0, digimon.skills.length - 10) : 0;
+const attrChips = digimon ? digimon.attributes.map((a) => '<span class="chip chip-info">' + esc(localizeAttr(a, lang)) + '</span>').join('') : '';
+const fieldChips = digimon
+  ? digimon.fields
+      .map(
+        (f) =>
+          '<span class="chip chip-field">' +
+          (f.image ? '<img src="' + esc(f.image) + '" alt="" width="18" height="18" loading="lazy" />' : '<span class="material-icons chip-fallback-icon" aria-hidden="true">category</span>') +
+          esc(localizeField(f.name, lang)) +
+          '</span>',
+      )
+      .join('')
+  : '';
+const descLocalized = digimon ? localizeDescription(digimon, lang) : { text: '', translated: true };
+const showDescFallback = Boolean(lang === 'es' && !descLocalized.translated && descLocalized.text);
+const factsJson = digimon
+  ? JSON.stringify({
+      attributes: digimon.attributes,
+      types: digimon.types,
+      fields: digimon.fields.map((f) => ({ name: f.name, image: f.image })),
+      nativeLevel: digimon.nativeLevel,
+      descTranslated: descLocalized.translated,
+      descEn: digimon.description || '',
+      descEs: localizeDescription(digimon, 'es').text || '',
+      skills: digimon.skills.map((s) => ({
+        name: s.name,
+        alias: s.translation || '',
+        descEn: s.description || '',
+        descEs: localizeSkillDescription(s, 'es') || '',
+      })),
+      skillsRest: Math.max(0, digimon.skills.length - 10),
+      priorRest: Math.max(0, digimon.priorEvolutions.length - 12),
+      nextRest: Math.max(0, digimon.nextEvolutions.length - 12),
+    })
+  : '{}';
+---
+<Layout title={title} description={description} canonical={digimon ? detailHref(digimon) : ''} lang={lang}>
+  {jsonLd ? <span id="json-ld" data-json={jsonLd} hidden></span> : null}
+  <main class="dex-page-bg">
+    <div class="container detail-container">
+      <a href="/dex" class="back-link">
+        <span class="material-icons">arrow_back</span> <span data-i18n="detail.back">{t(lang, 'detail.back')}</span>
+      </a>
+
+      {!digimon ? (
+        <section class="error-card">
+          <div class="state-block">
+            <span class="material-icons state-icon">help_outline</span>
+            <div class="state-heading" data-i18n="detail.notFoundT">{t(lang, 'detail.notFoundT')}</div>
+            <div class="state-sub" data-i18n="detail.notFoundS">{t(lang, 'detail.notFoundS')}</div>
+          </div>
+        </section>
+      ) : (
+        <div>
+          <div class="detail-grid">
+            <section class="detail-visual">
+              <img
+                src={digimon.img}
+                alt={digimon.name}
+                class="detail-img"
+                width="320"
+                height="320"
+                onerror="this.onerror=null;this.src='/favicon.svg'"
+              />
+              <h1 class="detail-name">{digimon.name}</h1>
+              <span class={badgeClass} data-level={digimon.nativeLevel}>{localizeLevel(digimon.nativeLevel, lang)}</span>
+              <div class="native-level"><span data-i18n="detail.stage">{t(lang, 'detail.stage')}</span>: {digimon.nativeLevel} · ID #{digimon.id}</div>
+              {digimon.xAntibody ? <div class="xanti">X-Antibody</div> : null}
+              {hasNav ? <nav class="detail-nav" set:html={navHtml}></nav> : null}
+            </section>
+
+            <section>
+              <div class="detail-heading" data-i18n="detail.dataTitle">{t(lang, 'detail.dataTitle')}</div>
+              <ul class="detail-list">
+                <li class="detail-item">
+                  <span class="material-icons item-icon icon-yellow">fingerprint</span>
+                  <span>
+                    <span class="item-caption" data-i18n="detail.fName">{t(lang, 'detail.fName')}</span>
+                    <span class="item-value">{digimon.name}</span>
+                  </span>
+                </li>
+                <li class="detail-item">
+                  <span class="material-icons item-icon icon-cyan">trending_up</span>
+                  <span>
+                    <span class="item-caption" data-i18n="detail.fLevel">{t(lang, 'detail.fLevel')}</span>
+                    <span class="item-value" data-fact="level">{localizeLevel(digimon.nativeLevel, lang)}</span>
+                  </span>
+                </li>
+                <li class="detail-item">
+                  <span class="material-icons item-icon icon-orange">category</span>
+                  <span>
+                    <span class="item-caption" data-i18n="detail.fAttr">{t(lang, 'detail.fAttr')}</span>
+                    <span class="item-value" data-fact="attributes">{digimon.attributes.map((a) => localizeAttr(a, lang)).join(' · ') || '—'}</span>
+                  </span>
+                </li>
+                <li class="detail-item">
+                  <span class="material-icons item-icon icon-green">pets</span>
+                  <span>
+                    <span class="item-caption" data-i18n="detail.fType">{t(lang, 'detail.fType')}</span>
+                    <span class="item-value" data-fact="types">{digimon.types.map((tp) => localizeType(tp, lang)).join(' · ') || '—'}</span>
+                  </span>
+                </li>
+              </ul>
+              <div class="data-note">
+                <span class="material-icons note-icon">info_outline</span>
+                <span data-i18n="detail.note">{t(lang, 'detail.note')}</span>
+              </div>
+            </section>
+          </div>
+
+          {descLocalized.text ? (
+            <section class="detail-section">
+              <h2 class="section-title section-title-row">
+                <span class="material-icons section-icon" aria-hidden="true">menu_book</span>
+                <span data-i18n="detail.descT">{t(lang, 'detail.descT')}</span>
+              </h2>
+              <div class="desc-card">
+                <p class="desc-text" id="dex-desc-text">{descLocalized.text}</p>
+                <p class="desc-fallback" id="dex-desc-fallback" hidden={!showDescFallback}>
+                  <span class="material-icons desc-fallback-icon" aria-hidden="true">info</span>
+                  <span data-i18n="detail.descFallback">{t(lang, 'detail.descFallback')}</span>
+                </p>
+              </div>
+            </section>
+          ) : null}
+
+          {fieldChips ? (
+            <section class="detail-section">
+              <h2 class="section-title" data-i18n="detail.fieldsT">{t(lang, 'detail.fieldsT')}</h2>
+              <div class="chip-row" id="dex-fields" set:html={fieldChips}></div>
+            </section>
+          ) : null}
+
+          {hasSkills ? (
+            <section class="detail-section">
+              <h2 class="section-title"><span data-i18n="detail.skillsT">{t(lang, 'detail.skillsT')}</span> ({digimon.skills.length})</h2>
+              <ul class="skill-list" data-skills="first" set:html={skillsHtml}></ul>
+              {hasRestSkills ? (
+                <details class="evo-more">
+                  <summary class="evo-summary" data-i18n-more="skills" data-count={restSkillsCount}>{t(lang, 'detail.moreSkills', { n: restSkillsCount })}</summary>
+                  <ul class="skill-list" data-skills="rest" set:html={restSkillsHtml}></ul>
+                </details>
+              ) : null}
+            </section>
+          ) : null}
+
+          {hasPrior ? (
+            <section class="detail-section">
+              <h2 class="section-title"><span data-i18n="detail.priorT">{t(lang, 'detail.priorT')}</span> ({digimon.priorEvolutions.length})</h2>
+              <div class="evo-grid" set:html={priorHtml}></div>
+            </section>
+          ) : null}
+
+          {hasNext ? (
+            <section class="detail-section">
+              <h2 class="section-title"><span data-i18n="detail.nextT">{t(lang, 'detail.nextT')}</span> ({digimon.nextEvolutions.length})</h2>
+              <div class="evo-grid" set:html={nextHtml}></div>
+            </section>
+          ) : null}
+
+          {hasRelated ? (
+            <section class="detail-section">
+              <h2 class="section-title" id="dex-related-title" data-related-level={digimon.nativeLevel}>{t(lang, 'detail.relatedT', { level: localizeLevel(digimon.nativeLevel, lang) })}</h2>
+              <div class="dex-grid related-grid" set:html={relatedHtml}></div>
+            </section>
+          ) : null}
+        </div>
+      )}
+    </div>
+  </main>
+  <script type="application/json" id="dex-facts" set:html={factsJson}></script>
+</Layout>
+
+<script>
+  import { currentLang, t, localizeLevel, localizeAttr, localizeType, localizeField } from '../../i18n/index.js';
+
+  const holder = document.getElementById('json-ld');
+  if (holder && holder.dataset.json) {
+    const s = document.createElement('script');
+    s.type = 'application/ld+json';
+    s.textContent = holder.dataset.json;
+    document.head.appendChild(s);
+  }
+
+  function esc(s) {
+    return String(s ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+  }
+
+  function skillCardHtml(s, lang) {
+    const desc = (lang === 'es' ? s.descEs : s.descEn) || s.descEn || t(lang, 'detail.skillNoDesc');
+    return (
+      '<li class="skill-item">' +
+      '<div class="skill-head"><span class="material-icons skill-icon" aria-hidden="true">auto_awesome</span>' +
+      '<div class="skill-titles"><div class="skill-name">' +
+      esc(s.name) +
+      '</div>' +
+      (s.alias ? '<div class="skill-trans">' + esc(s.alias) + '</div>' : '') +
+      '</div></div>' +
+      '<div class="skill-desc">' + esc(desc) + '</div>' +
+      '</li>'
+    );
+  }
+
+  function renderSkills(facts, lang) {
+    const skills = facts.skills || [];
+    const lists = document.querySelectorAll('.skill-list[data-skills]');
+    if (!lists.length || !skills.length) return;
+    const first = skills.slice(0, 10).map((s) => skillCardHtml(s, lang)).join('');
+    const rest = skills.slice(10).map((s) => skillCardHtml(s, lang)).join('');
+    if (lists[0]) lists[0].innerHTML = first;
+    if (lists[1]) lists[1].innerHTML = rest;
+  }
+
+  // Re-render de valores dinámicos al cambiar de idioma (sin refetch).
+  window.addEventListener('digidex:lang', (e) => {
+    const lang = (e.detail && e.detail.lang) || currentLang();
+    let facts = {};
+    try {
+      facts = JSON.parse(document.getElementById('dex-facts')?.textContent || '{}');
+    } catch { facts = {}; }
+
+    document.querySelectorAll('[data-fact="level"]').forEach((el) => {
+      // El nivel nativo vive en el badge principal.
+      const badge = document.querySelector('[data-level]');
+      const native = badge?.getAttribute('data-level');
+      if (native) el.textContent = localizeLevel(native, lang);
+    });
+    document.querySelectorAll('[data-fact="attributes"]').forEach((el) => {
+      el.textContent = (facts.attributes || []).map((a) => localizeAttr(a, lang)).join(' · ') || '—';
+    });
+    document.querySelectorAll('[data-fact="types"]').forEach((el) => {
+      el.textContent = (facts.types || []).map((tp) => localizeType(tp, lang)).join(' · ') || '—';
+    });
+    const fieldsEl = document.getElementById('dex-fields');
+    if (fieldsEl && facts.fields) {
+      fieldsEl.innerHTML = facts.fields
+        .map(
+          (f) =>
+            '<span class="chip chip-field">' +
+            (f.image ? `<img src="${esc(f.image)}" alt="" width="18" height="18" loading="lazy" />` : '<span class="material-icons chip-fallback-icon" aria-hidden="true">category</span>') +
+            esc(localizeField(f.name, lang)) +
+            '</span>',
+        )
+        .join('');
+    }
+    const descText = document.getElementById('dex-desc-text');
+    if (descText) {
+      const text = lang === 'es' ? facts.descEs || facts.descEn : facts.descEn;
+      if (text) descText.textContent = text;
+    }
+    const descFallback = document.getElementById('dex-desc-fallback');
+    if (descFallback) {
+      const show = lang === 'es' && !facts.descTranslated && Boolean(facts.descEn);
+      descFallback.hidden = !show;
+      if (show) {
+        const label = descFallback.querySelector('[data-i18n]');
+        if (label) label.textContent = t(lang, 'detail.descFallback');
+      }
+    }
+    renderSkills(facts, lang);
+    const relatedTitle = document.getElementById('dex-related-title');
+    if (relatedTitle?.dataset.relatedLevel) {
+      relatedTitle.textContent = t(lang, 'detail.relatedT', {
+        level: localizeLevel(relatedTitle.dataset.relatedLevel, lang),
+      });
+    }
+    document.querySelectorAll('[data-i18n-more]').forEach((el) => {
+      const kind = el.getAttribute('data-i18n-more');
+      const n = el.getAttribute('data-count') || '0';
+      if (kind === 'skills') el.textContent = t(lang, 'detail.moreSkills', { n });
+      else el.textContent = t(lang, 'detail.moreEvo', { n });
+    });
+  });
+</script>
+
+<style>
+  .detail-container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 16px 16px 48px;
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: rgba(255, 255, 255, 0.75);
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 24px;
+    padding: 6px 4px;
+    border-radius: 6px;
+  }
+
+  .back-link:hover {
+    color: var(--secondary);
+  }
+
+  .detail-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: 1fr;
+    max-width: 1000px;
+    margin: 0 auto;
+  }
+
+  @media (min-width: 900px) {
+    .detail-grid {
+      grid-template-columns: 5fr 7fr;
+    }
+  }
+
+  .detail-visual {
+    background: var(--card-bg);
+    border: 1px solid rgba(15, 98, 254, 0.45);
+    border-radius: 18px;
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.45);
+    padding: 24px;
+    text-align: center;
+  }
+
+  .detail-img {
+    width: 100%;
+    max-width: 320px;
+    filter: drop-shadow(0 0 18px rgba(255, 204, 0, 0.25));
+    animation: float 3.5s ease-in-out infinite;
+  }
+
+  .detail-name {
+    font-size: clamp(26px, 4vw, 34px);
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: var(--secondary);
+    margin: 12px 0 10px;
+    text-transform: uppercase;
+  }
+
+  .detail-badge {
+    padding: 8px 16px;
+    font-size: 16px;
+  }
+
+  .native-level {
+    margin-top: 8px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  .xanti {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(45, 226, 230, 0.6);
+    color: var(--info);
+  }
+
+  .detail-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  .detail-nav:empty {
+    display: none;
+  }
+
+  .nav-btn {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 12px;
+    max-width: 48%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .detail-heading {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--secondary);
+    margin-bottom: 14px;
+  }
+
+  .detail-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    background: var(--card-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .detail-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .detail-item + .detail-item {
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .item-icon {
+    font-size: 28px;
+  }
+
+  .icon-yellow { color: var(--secondary); }
+  .icon-cyan { color: var(--info); }
+  .icon-orange { color: var(--accent); }
+  .icon-green { color: var(--positive); }
+
+  .item-caption {
+    display: block;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 1px;
+  }
+
+  .item-value {
+    display: block;
+    font-size: 16px;
+    color: #fff;
+    margin-top: 2px;
+  }
+
+  .data-note {
+    display: flex;
+    align-items: center;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 16px;
+  }
+
+  .note-icon {
+    font-size: 16px;
+    margin-right: 6px;
+    color: var(--info);
+  }
+
+  .error-card {
+    background: var(--card-bg);
+    border: 1px solid rgba(255, 82, 82, 0.4);
+    border-radius: var(--radius);
+  }
+
+  .state-block {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    text-align: center;
+    padding: 48px 24px;
+  }
+
+  .state-heading {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin-top: 12px;
+  }
+
+  .state-sub {
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 6px;
+    margin-bottom: 20px;
+  }
+
+  .detail-section {
+    max-width: 1000px;
+    margin: 40px auto 0;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #fff;
+    margin-bottom: 14px;
+  }
+
+  .section-title-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .section-icon {
+    color: var(--secondary);
+    font-size: 20px;
+  }
+
+  .desc-card {
+    background: var(--card-bg);
+    border: 1px solid rgba(15, 98, 254, 0.35);
+    border-radius: 14px;
+    padding: 22px;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  }
+
+  .desc-text {
+    color: rgba(255, 255, 255, 0.88);
+    line-height: 1.8;
+    font-size: 15px;
+    margin: 0;
+    max-width: 68ch;
+    overflow-wrap: break-word;
+  }
+
+  .desc-fallback {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 14px 0 0;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(45, 226, 230, 0.4);
+    background: rgba(45, 226, 230, 0.07);
+    color: var(--info);
+    font-size: 12.5px;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .desc-fallback[hidden] {
+    display: none;
+  }
+
+  .desc-fallback-icon {
+    font-size: 16px;
+  }
+
+  .desc-note {
+    margin: 8px 2px 0;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.45);
+    font-style: italic;
+  }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .chip:hover {
+    transform: translateY(-1px);
+  }
+
+  .chip img {
+    border-radius: 4px;
+  }
+
+  .chip-fallback-icon {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .chip-info {
+    border-color: rgba(45, 226, 230, 0.5);
+    color: var(--info);
+  }
+
+  .chip-field {
+    color: var(--secondary);
+    border-color: rgba(255, 204, 0, 0.4);
+  }
+
+  .chip-field:hover {
+    border-color: rgba(255, 204, 0, 0.6);
+    box-shadow: 0 4px 14px rgba(255, 204, 0, 0.12);
+  }
+
+  .skill-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 700px) {
+    .skill-list {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .skill-item {
+    background: linear-gradient(160deg, rgba(21, 27, 46, 0.95), rgba(13, 20, 42, 0.95));
+    border: 1px solid rgba(15, 98, 254, 0.3);
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+    transition: border-color 0.2s ease, transform 0.2s ease;
+    overflow-wrap: break-word;
+  }
+
+  .skill-item:hover {
+    border-color: rgba(255, 204, 0, 0.45);
+    transform: translateY(-2px);
+  }
+
+  .skill-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .skill-icon {
+    color: var(--secondary);
+    font-size: 20px;
+    margin-top: 2px;
+    flex-shrink: 0;
+  }
+
+  .skill-titles {
+    min-width: 0;
+  }
+
+  .skill-name {
+    font-weight: 800;
+    color: #fff;
+    font-size: 15.5px;
+    line-height: 1.35;
+  }
+
+  .skill-trans {
+    font-size: 12.5px;
+    color: #8fb8ff;
+    font-style: italic;
+    margin-top: 2px;
+  }
+
+  .skill-desc {
+    font-size: 13.5px;
+    color: rgba(255, 255, 255, 0.72);
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    line-height: 1.65;
+  }
+
+  .evo-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    justify-items: center;
+  }
+
+  .evo-card {
+    text-decoration: none;
+  }
+
+  .evo-img-wrap {
+    height: 140px;
+  }
+
+  .evo-name {
+    font-size: 13px;
+    overflow-wrap: break-word;
+  }
+
+  .evo-cond {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 4px;
+    line-height: 1.4;
+    overflow-wrap: break-word;
+  }
+
+  .evo-more {
+    margin-top: 12px;
+  }
+
+  .evo-more .evo-grid {
+    margin-top: 12px;
+  }
+
+  .evo-summary {
+    cursor: pointer;
+    display: inline-block;
+    padding: 10px 22px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .evo-summary:hover {
+    border-color: var(--secondary);
+    color: var(--secondary);
+  }
+
+  .related-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    justify-items: center;
+  }
+
+  @keyframes float {
+    0% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+    100% { transform: translateY(0); }
+  }
+</style>
