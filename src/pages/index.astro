@@ -1,13 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { getCatalog } from '../services/digimonService.js';
+import { getTotalCount } from '../services/digimonService.js';
 
-let totalCount = 1488;
+let totalCount = 0;
 try {
-  const data = await getCatalog();
-  if (Array.isArray(data) && data.length > 0) totalCount = data.length;
+  totalCount = await getTotalCount();
 } catch {
-  // Build offline: se mantiene el conteo por defecto.
+  // Build offline: el conteo se oculta si la API no responde.
 }
 ---
 <Layout title="DigiDex Web — Explora el Mundo Digital">
@@ -39,7 +38,7 @@ try {
           <div class="feature-row">
             <span class="badge badge-outline feature-chip">
               <span class="material-icons chip-icon chip-yellow">pets</span>
-              <span id="digimon-count">{totalCount}</span>+ Digimon
+              <span id="digimon-count">{totalCount > 0 ? totalCount : '···'}</span>+ Digimon
             </span>
             <span class="badge badge-outline feature-chip">
               <span class="material-icons chip-icon chip-cyan">trending_up</span>

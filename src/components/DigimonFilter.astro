@@ -1,15 +1,19 @@
 ---
 /**
- * Digivice Radar — búsqueda por nombre, filtros por nivel/atributo y orden.
+ * Digivice Radar — búsqueda por nombre y filtros de servidor.
  * Los ids son el contrato con el script de `src/pages/dex/index.astro`:
  * - `#dex-search` (input)
- * - `#dex-level` (select)
+ * - `#dex-level` (select, valor = nivel nativo Digi-API)
  * - `#dex-attribute` (select)
- * - `#dex-sort` (select)
+ * - `#dex-xantibody` (select: "", "true", "false")
  * - `#dex-clear` (button)
  */
+interface LevelOption {
+  value: string;
+  label: string;
+}
 interface Props {
-  levels?: string[];
+  levels?: LevelOption[];
   attributes?: string[];
 }
 const { levels = [], attributes = [] } = Astro.props;
@@ -40,7 +44,7 @@ const { levels = [], attributes = [] } = Astro.props;
       <span class="material-icons input-icon">signal_cellular_alt</span>
       <select id="dex-level">
         <option value="">Todos los niveles</option>
-        {levels.map((l) => <option value={l}>{l}</option>)}
+        {levels.map((l) => <option value={l.value}>{l.label}</option>)}
       </select>
     </div>
   </div>
@@ -57,13 +61,13 @@ const { levels = [], attributes = [] } = Astro.props;
   </div>
 
   <div class="filter-group">
-    <label class="filter-label" for="dex-sort">Orden</label>
+    <label class="filter-label" for="dex-xantibody">X-Antibody</label>
     <div class="input-wrap">
-      <span class="material-icons input-icon">sort</span>
-      <select id="dex-sort">
-        <option value="name-asc">Nombre A–Z</option>
-        <option value="name-desc">Nombre Z–A</option>
-        <option value="level">Por nivel</option>
+      <span class="material-icons input-icon">science</span>
+      <select id="dex-xantibody">
+        <option value="">Todos</option>
+        <option value="true">Portadores</option>
+        <option value="false">Sin X-Antibody</option>
       </select>
     </div>
   </div>

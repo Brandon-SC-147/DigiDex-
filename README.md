@@ -31,9 +31,12 @@ Nueva etapa del proyecto, construida sobre Astro y orientada a convertirse en un
 ## Funcionalidad actual
 
 - Interfaz web construida con Astro.
-- Catálogo de Digimon.
-- Búsqueda por nombre.
-- Vista individual de Digimon.
+- Catálogo de Digimon con paginación real del servidor (24 por página).
+- Búsqueda por nombre contra la API.
+- Filtros por nivel, atributo y X-Antibody.
+- Vista individual de Digimon en ruta estable `/dex/:id-slug`.
+- Fichas con descripción, skills, tipos, atributos y evoluciones.
+- Redirección compatible desde URLs heredadas `/dex/:name`.
 - Integración con API pública.
 - Diseño responsive.
 - Manejo de carga y errores.
@@ -42,14 +45,7 @@ Nueva etapa del proyecto, construida sobre Astro y orientada a convertirse en un
 
 ## Evolución planificada
 
-- Migración completa a Digi-API.
-- Catálogo ampliado.
-- Paginación desde servidor.
-- Filtros avanzados.
-- Navegación mediante ID.
-- Fichas con skills.
-- Tipos y atributos.
-- Evoluciones anteriores y posteriores.
+- Catálogo ampliado automáticamente con nuevos registros de Digi-API.
 - Selector ES / EN.
 - Traducción visual al español.
 - Sección independiente para explorar series / generaciones.
@@ -121,14 +117,14 @@ src/
 | Ruta | Descripción |
 | ---- | ----------- |
 | `/` | Pantalla de bienvenida. |
-| `/dex` | Catálogo principal. |
-| `/dex/:name` | Detalle del Digimon (prerenderizado). |
+| `/dex` | Catálogo paginado (24 por página). Acepta `?page=` (base 1), `?name=`, `?level=`, `?attribute=` y `?xAntibody=`. |
+| `/dex/:id-:slug` | Detalle del Digimon (prerenderizado). El ID identifica, el slug describe. |
+| `/dex/:name` | Formato heredado: redirige a la URL estable con ID. |
 
 ### Rutas previstas
 
 Arquitectura futura, todavía no implementada:
 
-- Navegación de fichas mediante ID.
 - Sección independiente de series / generaciones.
 - Selector de idioma ES / EN.
 
@@ -160,9 +156,10 @@ npm run preview
 
 - [x] Base Astro del proyecto
 - [x] Catálogo y ficha individual
-- [ ] Migración completa a Digi-API
-- [ ] Paginación y filtros avanzados
-- [ ] Evoluciones y fichas enriquecidas
+- [x] Migración completa a Digi-API
+- [x] Paginación y filtros del servidor
+- [x] Rutas estables por ID con redirección heredada
+- [x] Evoluciones y fichas enriquecidas
 - [ ] Selector ES / EN
 - [ ] Sección de series / generaciones
 

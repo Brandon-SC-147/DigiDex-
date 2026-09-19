@@ -1,50 +1,40 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import {
-  getCatalog,
+  getDigimonIdList,
   getDigimonById,
-  normalizeDetail,
-  detailRawCache,
+  getIdNeighbors,
+  getSameLevel,
+  getNameIdMap,
+  slugify,
   LEVEL_CLASSES,
 } from '../../services/digimonService.js';
 
+/**
+ * Ruta unificada de ficha:
+ * - Formato estable `/dex/123-slug` (el ID identifica, el slug describe).
+ * - Formato heredado `/dex/Nombre` -> redirección 1 paso a la URL estable.
+ */
 export async function getStaticPaths() {
   try {
-    const catalog = await getCatalog();
-    return catalog.map((c) => ({
-      params: { name: c.name },
-      props: { catalogName: c.name },
-    }));
+    const list = await getDigimonIdList();
+    return list.flatMap((item) => [
+      {
+        params: { slug: `${item.id}-${slugify(item.name)}` },
+        props: { mode: 'detail', id: item.id },
+      },
+      {
+        params: { slug: item.name },
+        props: { mode: 'legacy', name: item.name },
+      },
+    ]);
   } catch {
     return [];
   }
 }
 
-const { name } = Astro.params;
-
-let catalog = [];
-try {
-  catalog = await getCatalog();
-} catch {
-  catalog = [];
-}
-const nameSet = new Set(catalog.map((c) => c.name));
-
-let digimon = null;
-try {
-  const hit = catalog.find((c) => c.name.toLowerCase() === String(name).toLowerCase());
-  if (hit) {
-    const raw = detailRawCache.get(hit.id);
-    digimon = raw ? normalizeDetail(raw) : await getDigimonById(hit.id);
-  } else if (Astro.props.catalogName) {
-    const raw = [...detailRawCache.values()].find(
-      (r) => r.name.toLowerCase() === String(name).toLowerCase(),
-    );
-    digimon = raw ? normalizeDetail(raw) : null;
-  }
-} catch {
-  digimon = null;
-}
+const { slug } = Astro.params;
+const mode = Astro.props.mode ?? 'detail';
 
 function esc(s) {
   return String(s ?? '')
@@ -52,6 +42,43 @@ function esc(s) {
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;');
+}
+
+// ---- Rama heredada: redirección a la URL estable ----
+let legacyTarget = '';
+if (mode === 'legacy') {
+  try {
+    const map = await getNameIdMap();
+    const id = map.get(String(Astro.props.name ?? slug).toLowerCase());
+    if (id != null) legacyTarget = `/dex/${id}-${slugify(Astro.props.name ?? slug)}`;
+  } catch {
+    legacyTarget = '';
+  }
+}
+
+// ---- Rama detalle ----
+let digimon = null;
+let neighbors = { prev: null, next: null };
+let related = [];
+if (mode === 'detail') {
+  const id = Number(Astro.props.id ?? String(slug).match(/^(\d+)/)?.[1]);
+  try {
+    digimon = await getDigimonById(id);
+  } catch {
+    digimon = null;
+  }
+  if (digimon) {
+    try {
+      neighbors = await getIdNeighbors(digimon.id);
+    } catch {
+      neighbors = { prev: null, next: null };
+    }
+    try {
+      related = await getSameLevel(digimon.nativeLevel, digimon.id, 6);
+    } catch {
+      related = [];
+    }
+  }
 }
 
 const levelClass = digimon ? (LEVEL_CLASSES[digimon.level] ?? 'level-Unknown') : 'level-Unknown';
@@ -70,25 +97,21 @@ const jsonLd = digimon
     })
   : '';
 
-const idx = digimon ? catalog.findIndex((c) => c.name === digimon.name) : -1;
-const prev = idx > 0 ? catalog[idx - 1] : null;
-const next = idx >= 0 && idx < catalog.length - 1 ? catalog[idx + 1] : null;
-
 let navHtml = '';
-if (prev) {
+if (neighbors.prev) {
   navHtml +=
-    '<a class="btn btn-outline nav-btn" href="/dex/' +
-    encodeURIComponent(prev.name) +
+    '<a class="btn btn-outline nav-btn" href="' +
+    esc(neighbors.prev.href) +
     '"><span class="material-icons">arrow_back</span> ' +
-    esc(prev.name) +
+    esc(neighbors.prev.name) +
     '</a>';
 }
-if (next) {
+if (neighbors.next) {
   navHtml +=
-    '<a class="btn btn-outline nav-btn" href="/dex/' +
-    encodeURIComponent(next.name) +
+    '<a class="btn btn-outline nav-btn" href="' +
+    esc(neighbors.next.href) +
     '">' +
-    esc(next.name) +
+    esc(neighbors.next.name) +
     ' <span class="material-icons">arrow_forward</span></a>';
 }
 const hasNav = navHtml.length > 0;
@@ -107,16 +130,15 @@ function evoCardHtml(e) {
     '</div>' +
     (e.condition ? '<div class="evo-cond">' + esc(e.condition) + '</div>' : '') +
     '</div>';
-  if (nameSet.has(e.name)) {
-    return (
-      '<a class="digi-card hover-lift evo-card" href="/dex/' +
-      encodeURIComponent(e.name) +
-      '">' +
-      inner +
-      '</a>'
-    );
-  }
-  return '<div class="digi-card evo-card">' + inner + '</div>';
+  return (
+    '<a class="digi-card hover-lift evo-card" href="/dex/' +
+    e.id +
+    '-' +
+    slugify(e.name) +
+    '">' +
+    inner +
+    '</a>'
+  );
 }
 
 function evoSection(list) {
@@ -138,14 +160,11 @@ const nextHtml = digimon ? evoSection(digimon.nextEvolutions) : '';
 const hasPrior = digimon && digimon.priorEvolutions.length > 0;
 const hasNext = digimon && digimon.nextEvolutions.length > 0;
 
-const related = digimon
-  ? catalog.filter((c) => c.nativeLevel === digimon.nativeLevel && c.name !== digimon.name).slice(0, 6)
-  : [];
 function relatedCardHtml(d) {
   const cls = LEVEL_CLASSES[d.level] ?? 'level-Unknown';
   return (
-    '<a class="digi-card hover-lift" href="/dex/' +
-    encodeURIComponent(d.name) +
+    '<a class="digi-card hover-lift" href="' +
+    esc(d.href) +
     '">' +
     '<div class="img-container">' +
     '<img src="' +
@@ -169,9 +188,6 @@ function relatedCardHtml(d) {
 const relatedHtml = related.map(relatedCardHtml).join('');
 const hasRelated = related.length > 0;
 
-const visibleSkills = digimon ? digimon.skills.slice(0, 10) : [];
-const restSkills = digimon ? digimon.skills.slice(10) : [];
-const hasSkills = digimon && digimon.skills.length > 0;
 function skillHtml(s) {
   return (
     '<li class="skill-item"><div class="skill-name">' +
@@ -182,12 +198,13 @@ function skillHtml(s) {
     '</li>'
   );
 }
-const skillsHtml = visibleSkills.map(skillHtml).join('');
-const restSkillsHtml = restSkills.map(skillHtml).join('');
-const hasRestSkills = restSkills.length > 0;
-const restSkillsCount = restSkills.length;
+const skillsHtml = digimon ? digimon.skills.slice(0, 10).map(skillHtml).join('') : '';
+const restSkillsHtml = digimon ? digimon.skills.slice(10).map(skillHtml).join('') : '';
+const hasSkills = digimon && digimon.skills.length > 0;
+const hasRestSkills = digimon && digimon.skills.length > 10;
+const restSkillsCount = digimon ? Math.max(0, digimon.skills.length - 10) : 0;
 const attrChips = digimon ? digimon.attributes.map((a) => '<span class="chip chip-info">' + esc(a) + '</span>').join('') : '';
-const typeChips = digimon ? digimon.types.map((t) => '<span class="chip chip-neutral">' + esc(t) + '</span>').join('') : '';
+const typeChips = '';
 const fieldChips = digimon
   ? digimon.fields
       .map(
@@ -201,6 +218,8 @@ const fieldChips = digimon
   : '';
 ---
 <Layout title={title} description={description}>
+  {mode === 'legacy' && legacyTarget ? <link rel="canonical" href={legacyTarget} /> : null}
+  {mode === 'legacy' && legacyTarget ? <meta http-equiv="refresh" content={'0;url=' + legacyTarget} /> : null}
   {jsonLd ? <span id="json-ld" data-json={jsonLd} hidden></span> : null}
   <main class="dex-page-bg">
     <div class="container detail-container">
@@ -208,12 +227,25 @@ const fieldChips = digimon
         <span class="material-icons">arrow_back</span> Volver al Dex
       </a>
 
-      {!digimon ? (
+      {mode === 'legacy' ? (
+        <section class="error-card">
+          <div class="state-block">
+            <span class="material-icons state-icon">info_outline</span>
+            <div class="state-heading">URL actualizada</div>
+            <div class="state-sub">Las fichas ahora usan ID estable. Serás redirigido…</div>
+            {legacyTarget ? (
+              <a class="btn btn-primary" href={legacyTarget}>
+                Ir a la ficha <span class="material-icons">arrow_forward</span>
+              </a>
+            ) : null}
+          </div>
+        </section>
+      ) : !digimon ? (
         <section class="error-card">
           <div class="state-block">
             <span class="material-icons state-icon">help_outline</span>
             <div class="state-heading">Digimon no encontrado</div>
-            <div class="state-sub">No existe una criatura con ese nombre en la base de datos.</div>
+            <div class="state-sub">No existe una criatura con ese identificador en la base de datos.</div>
           </div>
         </section>
       ) : (
@@ -230,9 +262,9 @@ const fieldChips = digimon
               />
               <h1 class="detail-name">{digimon.name}</h1>
               <span class={badgeClass}>{digimon.level}</span>
-              <div class="native-level">Etapa: {digimon.nativeLevel}</div>
+              <div class="native-level">Etapa: {digimon.nativeLevel} · ID #{digimon.id}</div>
               {digimon.xAntibody ? <div class="xanti">X-Antibody</div> : null}
-              {hasNav ? <nav class="detail-nav" set:html={navHtml} /> : null}
+              {hasNav ? <nav class="detail-nav" set:html={navHtml}></nav> : null}
             </section>
 
             <section>
@@ -525,11 +557,6 @@ const fieldChips = digimon
     padding: 48px 24px;
   }
 
-  .state-icon {
-    font-size: 56px;
-    color: #9e9e9e;
-  }
-
   .state-heading {
     font-size: 20px;
     font-weight: 700;
@@ -540,6 +567,7 @@ const fieldChips = digimon
   .state-sub {
     color: rgba(255, 255, 255, 0.55);
     margin-top: 6px;
+    margin-bottom: 20px;
   }
 
   .detail-section {
@@ -588,10 +616,6 @@ const fieldChips = digimon
   .chip-info {
     border-color: rgba(45, 226, 230, 0.5);
     color: var(--info);
-  }
-
-  .chip-neutral {
-    color: rgba(255, 255, 255, 0.8);
   }
 
   .chip-field {

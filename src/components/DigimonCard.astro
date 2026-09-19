@@ -1,8 +1,10 @@
 ---
 interface Digimon {
+  id?: number;
   name: string;
   img: string;
   level: string;
+  href?: string;
 }
 
 interface Props {
@@ -20,10 +22,15 @@ const LEVEL_CLASSES: Record<string, string> = {
   Ultimate: 'level-Ultimate',
   Mega: 'level-Mega',
   Armor: 'level-Armor',
+  Hybrid: 'level-Hybrid',
 };
 
 const levelClass = LEVEL_CLASSES[digimon.level] ?? 'level-Unknown';
-const detailHref = `/dex/${encodeURIComponent(digimon.name)}`;
+// URLs estables `/dex/123-slug`; compatibilidad con formato heredado por nombre.
+const detailHref =
+  digimon.href ?? (digimon.id != null
+    ? `/dex/${digimon.id}`
+    : `/dex/${encodeURIComponent(digimon.name)}`);
 ---
 <article class="digi-card hover-lift">
   <div class="img-container">
