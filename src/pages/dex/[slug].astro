@@ -9,6 +9,14 @@ import {
   detailHref,
   LEVEL_CLASSES,
 } from '../../services/digimonService.js';
+import {
+  t,
+  normalizeLang,
+  localizeLevel,
+  localizeAttr,
+  localizeType,
+  localizeField,
+} from '../../i18n/index.js';
 
 /**
  * Ficha SSR bajo demanda (sin getStaticPaths masivo):
@@ -19,6 +27,7 @@ import {
 export const prerender = false;
 
 const { slug } = Astro.params;
+const lang = normalizeLang(Astro.url.searchParams.get('lang'));
 
 function esc(s) {
   return String(s ?? '')
@@ -61,10 +70,12 @@ if (!digimon) Astro.response.status = 404;
 
 const levelClass = digimon ? (LEVEL_CLASSES[digimon.level] ?? 'level-Unknown') : 'level-Unknown';
 const badgeClass = 'badge detail-badge ' + levelClass;
-const title = digimon ? digimon.name + ' — DigiDex Web' : 'No encontrado — DigiDex Web';
+const title = digimon ? digimon.name + ' — DigiDex Web' : t(lang, 'detail.notFoundT') + ' — DigiDex Web';
 const description = digimon
-  ? 'Ficha de ' + digimon.name + ' (' + digimon.level + ', ' + digimon.attributes.join('/') + '). Descripción, skills y evoluciones en DigiDex Web.'
-  : 'Digimon no encontrado en DigiDex Web.';
+  ? lang === 'en'
+    ? `${digimon.name} profile (${digimon.level}, ${digimon.attributes.join('/')}). Description, skills and evolutions on DigiDex Web.`
+    : 'Ficha de ' + digimon.name + ' (' + digimon.level + ', ' + digimon.attributes.join('/') + '). Descripción, skills y evoluciones en DigiDex Web.'
+  : t(lang, 'detail.notFoundS');
 const jsonLd = digimon
   ? JSON.stringify({
       '@context': 'https://schema.org',
@@ -143,8 +154,10 @@ function relatedCardHtml(d) {
     '</div>' +
     '<div class="digi-meta"><span class="badge ' +
     cls +
+    '" data-level="' +
+    esc(d.nativeLevel ?? d.level) +
     '">' +
-    esc(d.level) +
+    esc(localizeLevel(d.nativeLevel ?? d.level, lang)) +
     '</span><span class="digi-kind">DIGIMON</span></div>' +
     '</div></div></a>'
   );
@@ -167,34 +180,44 @@ const restSkillsHtml = digimon ? digimon.skills.slice(10).map(skillHtml).join(''
 const hasSkills = digimon && digimon.skills.length > 0;
 const hasRestSkills = digimon && digimon.skills.length > 10;
 const restSkillsCount = digimon ? Math.max(0, digimon.skills.length - 10) : 0;
-const attrChips = digimon ? digimon.attributes.map((a) => '<span class="chip chip-info">' + esc(a) + '</span>').join('') : '';
-const typeChips = '';
+const attrChips = digimon ? digimon.attributes.map((a) => '<span class="chip chip-info">' + esc(localizeAttr(a, lang)) + '</span>').join('') : '';
 const fieldChips = digimon
   ? digimon.fields
       .map(
         (f) =>
           '<span class="chip chip-field">' +
           (f.image ? '<img src="' + esc(f.image) + '" alt="" width="18" height="18" loading="lazy" />' : '') +
-          esc(f.name) +
+          esc(localizeField(f.name)) +
           '</span>',
       )
       .join('')
   : '';
+const factsJson = digimon
+  ? JSON.stringify({
+      attributes: digimon.attributes,
+      types: digimon.types,
+      fields: digimon.fields.map((f) => ({ name: f.name, image: f.image })),
+      nativeLevel: digimon.nativeLevel,
+      skillsRest: Math.max(0, digimon.skills.length - 10),
+      priorRest: Math.max(0, digimon.priorEvolutions.length - 12),
+      nextRest: Math.max(0, digimon.nextEvolutions.length - 12),
+    })
+  : '{}';
 ---
-<Layout title={title} description={description} canonical={digimon ? detailHref(digimon) : ''}>
+<Layout title={title} description={description} canonical={digimon ? detailHref(digimon) : ''} lang={lang}>
   {jsonLd ? <span id="json-ld" data-json={jsonLd} hidden></span> : null}
   <main class="dex-page-bg">
     <div class="container detail-container">
       <a href="/dex" class="back-link">
-        <span class="material-icons">arrow_back</span> Volver al Dex
+        <span class="material-icons">arrow_back</span> <span data-i18n="detail.back">{t(lang, 'detail.back')}</span>
       </a>
 
       {!digimon ? (
         <section class="error-card">
           <div class="state-block">
             <span class="material-icons state-icon">help_outline</span>
-            <div class="state-heading">Digimon no encontrado</div>
-            <div class="state-sub">No existe una criatura con ese identificador en la base de datos.</div>
+            <div class="state-heading" data-i18n="detail.notFoundT">{t(lang, 'detail.notFoundT')}</div>
+            <div class="state-sub" data-i18n="detail.notFoundS">{t(lang, 'detail.notFoundS')}</div>
           </div>
         </section>
       ) : (
@@ -210,72 +233,75 @@ const fieldChips = digimon
                 onerror="this.onerror=null;this.src='/favicon.svg'"
               />
               <h1 class="detail-name">{digimon.name}</h1>
-              <span class={badgeClass}>{digimon.level}</span>
-              <div class="native-level">Etapa: {digimon.nativeLevel} · ID #{digimon.id}</div>
+              <span class={badgeClass} data-level={digimon.nativeLevel}>{localizeLevel(digimon.nativeLevel, lang)}</span>
+              <div class="native-level"><span data-i18n="detail.stage">{t(lang, 'detail.stage')}</span>: {digimon.nativeLevel} · ID #{digimon.id}</div>
               {digimon.xAntibody ? <div class="xanti">X-Antibody</div> : null}
               {hasNav ? <nav class="detail-nav" set:html={navHtml}></nav> : null}
             </section>
 
             <section>
-              <div class="detail-heading">DATOS DE ANÁLISIS</div>
+              <div class="detail-heading" data-i18n="detail.dataTitle">{t(lang, 'detail.dataTitle')}</div>
               <ul class="detail-list">
                 <li class="detail-item">
                   <span class="material-icons item-icon icon-yellow">fingerprint</span>
                   <span>
-                    <span class="item-caption">NOMBRE</span>
+                    <span class="item-caption" data-i18n="detail.fName">{t(lang, 'detail.fName')}</span>
                     <span class="item-value">{digimon.name}</span>
                   </span>
                 </li>
                 <li class="detail-item">
                   <span class="material-icons item-icon icon-cyan">trending_up</span>
                   <span>
-                    <span class="item-caption">NIVEL DE EVOLUCIÓN</span>
-                    <span class="item-value">{digimon.level}</span>
+                    <span class="item-caption" data-i18n="detail.fLevel">{t(lang, 'detail.fLevel')}</span>
+                    <span class="item-value" data-fact="level">{localizeLevel(digimon.nativeLevel, lang)}</span>
                   </span>
                 </li>
                 <li class="detail-item">
                   <span class="material-icons item-icon icon-orange">category</span>
                   <span>
-                    <span class="item-caption">ATRIBUTO</span>
-                    <span class="item-value">{digimon.attributes.join(' · ') || '—'}</span>
+                    <span class="item-caption" data-i18n="detail.fAttr">{t(lang, 'detail.fAttr')}</span>
+                    <span class="item-value" data-fact="attributes">{digimon.attributes.map((a) => localizeAttr(a, lang)).join(' · ') || '—'}</span>
                   </span>
                 </li>
                 <li class="detail-item">
                   <span class="material-icons item-icon icon-green">pets</span>
                   <span>
-                    <span class="item-caption">TIPO</span>
-                    <span class="item-value">{digimon.types.join(' · ') || '—'}</span>
+                    <span class="item-caption" data-i18n="detail.fType">{t(lang, 'detail.fType')}</span>
+                    <span class="item-value" data-fact="types">{digimon.types.map((tp) => localizeType(tp, lang)).join(' · ') || '—'}</span>
                   </span>
                 </li>
               </ul>
               <div class="data-note">
                 <span class="material-icons note-icon">info_outline</span>
-                Datos de Digi-API (digi-api.com), proyecto fan sin afiliación con Bandai.
+                <span data-i18n="detail.note">{t(lang, 'detail.note')}</span>
               </div>
             </section>
           </div>
 
           {digimon.description ? (
             <section class="detail-section">
-              <h2 class="section-title">Descripción</h2>
+              <h2 class="section-title" data-i18n="detail.descT">{t(lang, 'detail.descT')}</h2>
               <p class="desc-text">{digimon.description}</p>
+              {lang === 'es' ? (
+                <p class="desc-note" data-i18n="detail.descNote">{t(lang, 'detail.descNote')}</p>
+              ) : null}
             </section>
           ) : null}
 
           {fieldChips ? (
             <section class="detail-section">
-              <h2 class="section-title">Fields</h2>
-              <div class="chip-row" set:html={fieldChips}></div>
+              <h2 class="section-title" data-i18n="detail.fieldsT">{t(lang, 'detail.fieldsT')}</h2>
+              <div class="chip-row" id="dex-fields" set:html={fieldChips}></div>
             </section>
           ) : null}
 
           {hasSkills ? (
             <section class="detail-section">
-              <h2 class="section-title">Skills ({digimon.skills.length})</h2>
+              <h2 class="section-title"><span data-i18n="detail.skillsT">{t(lang, 'detail.skillsT')}</span> ({digimon.skills.length})</h2>
               <ul class="skill-list" set:html={skillsHtml}></ul>
               {hasRestSkills ? (
                 <details class="evo-more">
-                  <summary class="evo-summary">Ver {restSkillsCount} skills más</summary>
+                  <summary class="evo-summary" data-i18n-more="skills" data-count={restSkillsCount}>{t(lang, 'detail.moreSkills', { n: restSkillsCount })}</summary>
                   <ul class="skill-list" set:html={restSkillsHtml}></ul>
                 </details>
               ) : null}
@@ -284,21 +310,21 @@ const fieldChips = digimon
 
           {hasPrior ? (
             <section class="detail-section">
-              <h2 class="section-title">Evoluciona desde ({digimon.priorEvolutions.length})</h2>
+              <h2 class="section-title"><span data-i18n="detail.priorT">{t(lang, 'detail.priorT')}</span> ({digimon.priorEvolutions.length})</h2>
               <div class="evo-grid" set:html={priorHtml}></div>
             </section>
           ) : null}
 
           {hasNext ? (
             <section class="detail-section">
-              <h2 class="section-title">Evoluciona a ({digimon.nextEvolutions.length})</h2>
+              <h2 class="section-title"><span data-i18n="detail.nextT">{t(lang, 'detail.nextT')}</span> ({digimon.nextEvolutions.length})</h2>
               <div class="evo-grid" set:html={nextHtml}></div>
             </section>
           ) : null}
 
           {hasRelated ? (
             <section class="detail-section">
-              <h2 class="section-title">Otros nivel {digimon.level}</h2>
+              <h2 class="section-title" id="dex-related-title" data-related-level={digimon.nativeLevel}>{t(lang, 'detail.relatedT', { level: localizeLevel(digimon.nativeLevel, lang) })}</h2>
               <div class="dex-grid related-grid" set:html={relatedHtml}></div>
             </section>
           ) : null}
@@ -306,9 +332,12 @@ const fieldChips = digimon
       )}
     </div>
   </main>
+  <script type="application/json" id="dex-facts" set:html={factsJson}></script>
 </Layout>
 
 <script>
+  import { currentLang, t, localizeLevel, localizeAttr, localizeType, localizeField } from '../../i18n/index.js';
+
   const holder = document.getElementById('json-ld');
   if (holder && holder.dataset.json) {
     const s = document.createElement('script');
@@ -316,6 +345,65 @@ const fieldChips = digimon
     s.textContent = holder.dataset.json;
     document.head.appendChild(s);
   }
+
+  function esc(s) {
+    return String(s ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
+  }
+
+  // Re-render de valores dinámicos al cambiar de idioma (sin refetch).
+  window.addEventListener('digidex:lang', (e) => {
+    const lang = (e.detail && e.detail.lang) || currentLang();
+    let facts = {};
+    try {
+      facts = JSON.parse(document.getElementById('dex-facts')?.textContent || '{}');
+    } catch { facts = {}; }
+
+    document.querySelectorAll('[data-fact="level"]').forEach((el) => {
+      // El nivel nativo vive en el badge principal.
+      const badge = document.querySelector('[data-level]');
+      const native = badge?.getAttribute('data-level');
+      if (native) el.textContent = localizeLevel(native, lang);
+    });
+    document.querySelectorAll('[data-fact="attributes"]').forEach((el) => {
+      el.textContent = (facts.attributes || []).map((a) => localizeAttr(a, lang)).join(' · ') || '—';
+    });
+    document.querySelectorAll('[data-fact="types"]').forEach((el) => {
+      el.textContent = (facts.types || []).map((tp) => localizeType(tp, lang)).join(' · ') || '—';
+    });
+    const fieldsEl = document.getElementById('dex-fields');
+    if (fieldsEl && facts.fields) {
+      fieldsEl.innerHTML = facts.fields
+        .map(
+          (f) =>
+            '<span class="chip chip-field">' +
+            (f.image ? `<img src="${esc(f.image)}" alt="" width="18" height="18" loading="lazy" />` : '') +
+            esc(localizeField(f.name)) +
+            '</span>',
+        )
+        .join('');
+    }
+    const relatedTitle = document.getElementById('dex-related-title');
+    if (relatedTitle?.dataset.relatedLevel) {
+      relatedTitle.textContent = t(lang, 'detail.relatedT', {
+        level: localizeLevel(relatedTitle.dataset.relatedLevel, lang),
+      });
+    }
+    document.querySelectorAll('[data-i18n-more]').forEach((el) => {
+      const kind = el.getAttribute('data-i18n-more');
+      const n = el.getAttribute('data-count') || '0';
+      if (kind === 'skills') el.textContent = t(lang, 'detail.moreSkills', { n });
+      else el.textContent = t(lang, 'detail.moreEvo', { n });
+    });
+    const descNote = document.querySelector('.desc-note');
+    if (descNote) {
+      if (lang === 'es') descNote.textContent = t(lang, 'detail.descNote');
+      else descNote.remove();
+    }
+  });
 </script>
 
 <style>
@@ -542,6 +630,13 @@ const fieldChips = digimon
     border-radius: 12px;
     padding: 18px;
     margin: 0;
+  }
+
+  .desc-note {
+    margin: 8px 2px 0;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.45);
+    font-style: italic;
   }
 
   .chip-row {

@@ -1,23 +1,27 @@
 ---
 import '../styles/global.css';
+import { t, normalizeLang } from '../i18n/index.js';
 
 interface Props {
   title?: string;
   description?: string;
   canonical?: string;
+  lang?: string;
 }
 
 const {
   title = 'DigiDex Web',
   description = 'DigiDex Web — Enciclopedia interactiva para explorar Digimon, consultar sus características, niveles e información detallada.',
   canonical: canonicalProp = '',
+  lang: langProp = 'es',
 } = Astro.props;
+const lang = normalizeLang(langProp);
 const currentPath = Astro.url.pathname;
 const site = Astro.site?.toString().replace(/\/$/, '') ?? '';
 const canonical = canonicalProp || (site ? `${site}${currentPath}` : currentPath);
 ---
 <!doctype html>
-<html lang="es">
+<html lang={lang}>
   <head>
     <meta charset="utf-8" />
     <meta name="description" content={description} />
@@ -46,19 +50,31 @@ const canonical = canonicalProp || (site ? `${site}${currentPath}` : currentPath
         <a href="/" class="brand" aria-label="Ir al inicio">
           <span class="material-icons brand-icon">pets</span>
           <span class="brand-title"><span class="brand-digi">Digi</span>Dex <span class="brand-web">Web</span></span>
-          <span class="brand-caption">Explora el Mundo Digital</span>
+          <span class="brand-caption" data-i18n="header.caption">{t(lang, 'header.caption')}</span>
         </a>
         <div class="header-links">
           <a href="/dex" class:list={['header-link', { active: currentPath.startsWith('/dex') }]}>
-            <span class="material-icons">radar</span> Dex
+            <span class="material-icons">radar</span> <span data-i18n="header.dex">{t(lang, 'header.dex')}</span>
           </a>
+          <div
+            class="lang-switch"
+            role="group"
+            aria-label={t(lang, 'header.langLabel')}
+            data-i18n-aria="header.langLabel"
+          >
+            <span class="material-icons lang-globe" aria-hidden="true">language</span>
+            <button type="button" class="lang-btn" data-lang-btn="es" aria-pressed={lang === 'es' ? 'true' : 'false'}>ES</button>
+            <span class="lang-sep" aria-hidden="true">|</span>
+            <button type="button" class="lang-btn" data-lang-btn="en" aria-pressed={lang === 'en' ? 'true' : 'false'}>EN</button>
+          </div>
           <a
             href="https://digimon.net/"
             target="_blank"
             rel="noopener"
             class="official-btn"
-            title="Sitio oficial de Digimon"
-            aria-label="Sitio oficial de Digimon"
+            title={t(lang, 'header.official')}
+            aria-label={t(lang, 'header.official')}
+            data-i18n-aria="header.official"
           >
             <img
               src="/official-logo.png"
@@ -74,11 +90,15 @@ const canonical = canonicalProp || (site ? `${site}${currentPath}` : currentPath
     <slot />
     <footer class="site-footer">
       <div class="footer-inner">
-        <span>DigiDex Web — proyecto fan sin afiliación con Bandai.</span>
+        <span data-i18n="footer.fan">{t(lang, 'footer.fan')}</span>
         <span class="footer-sep">·</span>
-        <span>Datos: digi-api.com</span>
+        <span><span data-i18n="footer.data">{t(lang, 'footer.data')}</span>: digi-api.com</span>
       </div>
     </footer>
+    <script>
+      import { initLanguage } from '../i18n/index.js';
+      initLanguage();
+    </script>
   </body>
 </html>
 
@@ -146,6 +166,49 @@ const canonical = canonicalProp || (site ? `${site}${currentPath}` : currentPath
     display: flex;
     align-items: center;
     gap: 4px;
+  }
+
+  .lang-switch {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    margin: 0 6px;
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.04);
+  }
+
+  .lang-globe {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.55);
+    margin-right: 2px;
+  }
+
+  .lang-btn {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-family: inherit;
+  }
+
+  .lang-btn:hover {
+    color: #fff;
+  }
+
+  .lang-btn.active {
+    color: var(--secondary);
+  }
+
+  .lang-sep {
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 12px;
   }
 
   .header-link {

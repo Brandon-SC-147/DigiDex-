@@ -201,6 +201,7 @@ function toCard(detail) {
     name: detail.name,
     img: detail.img,
     level: detail.level,
+    nativeLevel: detail.nativeLevel,
     attributes: detail.attributes,
     href: detailHref(detail),
   };
@@ -275,6 +276,7 @@ export async function getSameLevel(nativeLevel, excludeId, limit = 6) {
       name: i.name,
       img: i.image ?? '/favicon.svg',
       level: displayLevel(nativeLevel),
+      nativeLevel,
       attributes: [],
       href: `/dex/${i.id}-${slugify(i.name)}`,
     }));

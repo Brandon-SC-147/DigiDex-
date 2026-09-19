@@ -1,8 +1,11 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import { getTotalCount } from '../services/digimonService.js';
+import { t, normalizeLang } from '../i18n/index.js';
 
 export const prerender = true;
+
+const lang = normalizeLang(Astro.url.searchParams.get('lang'));
 
 let totalCount = 0;
 try {
@@ -11,7 +14,7 @@ try {
   // Build offline: el conteo se oculta si la API no responde.
 }
 ---
-<Layout title="DigiDex Web — Explora el Mundo Digital">
+<Layout title="DigiDex Web — Explora el Mundo Digital" lang={lang}>
   <main class="welcome-page">
     <div class="welcome-bg" aria-hidden="true"></div>
     <div class="welcome-overlay" aria-hidden="true"></div>
@@ -22,20 +25,17 @@ try {
     <div class="welcome-content">
       <section class="welcome-card">
         <div class="text-center">
-          <div class="brand-badge">ENCICLOPEDIA DIGITAL</div>
+          <div class="brand-badge" data-i18n="home.kicker">{t(lang, 'home.kicker')}</div>
 
           <h1 class="welcome-title">
             <span class="text-digimon-gradient">DigiDex Web</span>
           </h1>
 
-          <div class="welcome-subtitle">Explora el Mundo Digital</div>
+          <div class="welcome-subtitle" data-i18n="home.subtitle">{t(lang, 'home.subtitle')}</div>
 
           <div class="divider-icon material-icons">hub</div>
 
-          <p class="welcome-desc">
-            Descubre Digimon, consulta sus características, niveles, atributos e información
-            detallada.
-          </p>
+          <p class="welcome-desc" data-i18n="home.desc">{t(lang, 'home.desc')}</p>
 
           <div class="feature-row">
             <span class="badge badge-outline feature-chip">
@@ -44,22 +44,22 @@ try {
             </span>
             <span class="badge badge-outline feature-chip">
               <span class="material-icons chip-icon chip-cyan">trending_up</span>
-              Nivel y atributo
+              <span data-i18n="home.chipLevel">{t(lang, 'home.chipLevel')}</span>
             </span>
             <span class="badge badge-outline feature-chip">
               <span class="material-icons chip-icon chip-orange">timeline</span>
-              Evoluciones y skills
+              <span data-i18n="home.chipEvo">{t(lang, 'home.chipEvo')}</span>
             </span>
           </div>
 
           <a class="btn btn-primary cta-btn" href="/dex">
-            <span class="material-icons">travel_explore</span> Explorar DigiDex
+            <span class="material-icons">travel_explore</span> <span data-i18n="home.cta">{t(lang, 'home.cta')}</span>
           </a>
         </div>
 
         <div class="welcome-footer">
           <span class="material-icons footer-icon">public</span>
-          Un viaje por el Mundo Digital
+          <span data-i18n="home.journey">{t(lang, 'home.journey')}</span>
         </div>
       </section>
     </div>

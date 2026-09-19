@@ -4,12 +4,14 @@ import DigimonFilter from '../../components/DigimonFilter.astro';
 import DigimonCard from '../../components/DigimonCard.astro';
 import {
   getDigimonPage,
-  LEVEL_DISPLAY,
   NATIVE_LEVELS,
   NATIVE_ATTRIBUTES,
 } from '../../services/digimonService.js';
+import { t, normalizeLang, currentLang } from '../../i18n/index.js';
 
 export const prerender = true;
+
+const lang = normalizeLang(Astro.url.searchParams.get('lang'));
 
 const PAGE_SIZE = 24;
 
@@ -21,36 +23,31 @@ try {
   buildError = true;
 }
 
-const levelOptions = NATIVE_LEVELS.map((native) => ({
-  value: native,
-  label: LEVEL_DISPLAY[native] ?? native,
-}));
+const levelOptions = NATIVE_LEVELS.map((native) => ({ value: native }));
 ---
 <Layout
-  title="Catálogo — DigiDex Web"
-  description="Catálogo de Digimon: busca por nombre, filtra por nivel y atributo, y consulta la ficha completa con evoluciones y skills."
+  title={t(lang, 'dex.records') + ' — DigiDex Web'}
+  description={t(lang, 'dex.desc')}
+  lang={lang}
 >
   <main class="dex-page-bg">
     <div class="container-xl">
       <div class="page-hero">
-        <div class="hero-kicker">CATÁLOGO DIGITAL</div>
+        <div class="hero-kicker" data-i18n="dex.kicker">{t(lang, 'dex.kicker')}</div>
         <h1 class="hero-title">
-          <span class="text-digimon-gradient">Explora</span> el Mundo Digital
+          <span class="text-digimon-gradient" data-i18n="dex.titleA">{t(lang, 'dex.titleA')}</span> <span data-i18n="dex.titleB">{t(lang, 'dex.titleB')}</span>
         </h1>
-        <p class="hero-desc">
-          Consulta los Digimon del catálogo, filtra por nivel y atributo, y abre la ficha
-          completa de cada criatura digital.
-        </p>
+        <p class="hero-desc" data-i18n="dex.desc">{t(lang, 'dex.desc')}</p>
       </div>
 
       <div class="dex-layout">
         <aside class="dex-sidebar">
           <div class="sticky">
-            <DigimonFilter levels={levelOptions} attributes={NATIVE_ATTRIBUTES} />
+            <DigimonFilter levels={levelOptions} attributes={NATIVE_ATTRIBUTES} lang={lang} />
 
             <section class="counter-card">
               <div class="counter-value" id="dex-count">{firstPage.totalElements}</div>
-              <div class="counter-label">DIGIMONS ENCONTRADOS</div>
+              <div class="counter-label" data-i18n="dex.found">{t(lang, 'dex.found')}</div>
             </section>
           </div>
         </aside>
@@ -58,17 +55,17 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({
         <section class="dex-results" id="dex-results">
           <div class="results-toolbar">
             <span class="material-icons toolbar-icon">storage</span>
-            <span class="results-title">Registros del Dex</span>
+            <span class="results-title" data-i18n="dex.records">{t(lang, 'dex.records')}</span>
             <span class="results-meta" id="dex-meta"></span>
           </div>
 
           <div id="dex-error" class="error-card" hidden>
             <div class="state-block">
               <span class="material-icons state-icon error-icon">cloud_off</span>
-              <div class="state-heading">No se pudo conectar con la API</div>
-              <div class="state-sub">Revisa tu conexión o inténtalo de nuevo en unos segundos.</div>
+              <div class="state-heading" data-i18n="dex.errT">{t(lang, 'dex.errT')}</div>
+              <div class="state-sub" data-i18n="dex.errS">{t(lang, 'dex.errS')}</div>
               <button class="btn btn-outline" id="dex-retry" type="button">
-                <span class="material-icons">refresh</span> Reintentar
+                <span class="material-icons">refresh</span> <span data-i18n="dex.retry">{t(lang, 'dex.retry')}</span>
               </button>
             </div>
           </div>
@@ -77,17 +74,17 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({
 
           <div id="dex-empty" class="empty-state" hidden>
             <span class="material-icons state-icon">search_off</span>
-            <div class="state-heading">No se encontraron resultados</div>
-            <div class="state-sub">Prueba con otro nombre o quita los filtros.</div>
+            <div class="state-heading" data-i18n="dex.emptyT">{t(lang, 'dex.emptyT')}</div>
+            <div class="state-sub" data-i18n="dex.emptyS">{t(lang, 'dex.emptyS')}</div>
           </div>
 
           <div id="dex-grid" class="dex-grid">
             {firstPage.items.map((d) => <DigimonCard digimon={d} />)}
           </div>
 
-          <nav class="pagination" id="dex-pagination" aria-label="Paginación del Dex"></nav>
+          <nav class="pagination" id="dex-pagination" aria-label={t(lang, 'dex.pagination')} data-i18n-aria="dex.pagination"></nav>
           <noscript>
-            <p class="noscript-note">Activa JavaScript para filtrar y paginar el catálogo completo.</p>
+            <p class="noscript-note" data-i18n="dex.noscript">{t(lang, 'dex.noscript')}</p>
           </noscript>
         </section>
       </div>
@@ -98,9 +95,12 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({
 </Layout>
 
 <script>
-  import { getDigimonPage, getLevelClass } from '../../services/digimonService.js';
+  import { getDigimonPage, getLevelClass, NATIVE_LEVELS, NATIVE_ATTRIBUTES } from '../../services/digimonService.js';
+  import { t, currentLang, localizeLevel, localizeAttr } from '../../i18n/index.js';
 
   const PAGE_SIZE = 24;
+  let lang = currentLang();
+  let lastData = null;
 
   const searchInput = document.getElementById('dex-search');
   const levelSelect = document.getElementById('dex-level');
@@ -158,7 +158,8 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({
 
   function cardHtml(d) {
     const href = d.href || `/dex/${d.id}`;
-    const attrs = (d.attributes || []).slice(0, 2).map((a) => `<span class="digi-attr">${escapeHtml(a)}</span>`).join('');
+    const levelLabel = localizeLevel(d.nativeLevel ?? d.level, lang);
+    const attrs = (d.attributes || []).slice(0, 2).map((a) => `<span class="digi-attr">${escapeHtml(localizeAttr(a, lang))}</span>`).join('');
     return `
       <article class="digi-card hover-lift">
         <div class="img-container">
@@ -169,13 +170,13 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({
           <div>
             <div class="digi-name">${escapeHtml(d.name)}</div>
             <div class="digi-meta">
-              <span class="badge ${escapeHtml(getLevelClass(d.level))}">${escapeHtml(d.level || '')}</span>
-              <span class="digi-kind">DIGIMON</span>
+              <span class="badge ${escapeHtml(getLevelClass(d.level))}">${escapeHtml(levelLabel)}</span>
+              <span class="digi-kind">${escapeHtml(t(lang, 'dex.digimonKind'))}</span>
             </div>
             ${attrs ? `<div class="digi-attrs">${attrs}</div>` : ''}
           </div>
           <a href="${href}" class="btn-text digi-link">
-            Ver ficha <span class="material-icons">arrow_forward</span>
+            ${escapeHtml(t(lang, 'dex.viewFile'))} <span class="material-icons">arrow_forward</span>
           </a>
         </div>
       </article>`;
@@ -219,11 +220,11 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({
       .map((i) => `<button type="button" class="page-btn${i === current ? ' active' : ''}" data-page="${i + 1}" ${i === current ? 'aria-current="page"' : ''}>${i + 1}</button>`)
       .join('');
     paginationEl.innerHTML = `
-      <button type="button" class="page-btn page-nav" data-page="${uiPage - 1}" ${uiPage <= 1 ? 'disabled' : ''} aria-label="Página anterior">
+      <button type="button" class="page-btn page-nav" data-page="${uiPage - 1}" ${uiPage <= 1 ? 'disabled' : ''} aria-label="${escapeHtml(t(lang, 'dex.prevPage'))}">
         <span class="material-icons">chevron_left</span>
       </button>
       ${nums}
-      <button type="button" class="page-btn page-nav" data-page="${uiPage + 1}" ${uiPage >= totalPages ? 'disabled' : ''} aria-label="Página siguiente">
+      <button type="button" class="page-btn page-nav" data-page="${uiPage + 1}" ${uiPage >= totalPages ? 'disabled' : ''} aria-label="${escapeHtml(t(lang, 'dex.nextPage'))}">
         <span class="material-icons">chevron_right</span>
       </button>`;
     paginationEl.querySelectorAll('[data-page]').forEach((btn) => {
@@ -239,11 +240,12 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({
   }
 
   function render(data) {
+    lastData = data;
     const totalPages = Math.max(1, data.totalPages || 1);
     if (uiPage > totalPages) uiPage = totalPages;
     if (countEl) countEl.textContent = String(data.totalElements ?? 0);
     if (metaEl) metaEl.textContent = (data.totalElements ?? 0) > 0
-      ? `Página ${uiPage} de ${totalPages} · ${data.totalElements} resultados`
+      ? t(lang, 'dex.meta', { page: uiPage, pages: totalPages, count: data.totalElements })
       : '';
     const hasResults = (data.items?.length ?? 0) > 0;
     if (emptyEl) emptyEl.hidden = hasResults || !errorEl.hidden;
@@ -286,6 +288,29 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({
     }
   }
 
+  function rebuildFilterOptions() {
+    if (levelSelect) {
+      const current = levelSelect.value;
+      levelSelect.innerHTML =
+        `<option value="">${escapeHtml(t(lang, 'filter.allLevels'))}</option>` +
+        NATIVE_LEVELS.map((n) => `<option value="${escapeHtml(n)}">${escapeHtml(localizeLevel(n, lang))}</option>`).join('');
+      levelSelect.value = current;
+    }
+    if (attrSelect) {
+      const current = attrSelect.value;
+      attrSelect.innerHTML =
+        `<option value="">${escapeHtml(t(lang, 'filter.allAttr'))}</option>` +
+        NATIVE_ATTRIBUTES.map((a) => `<option value="${escapeHtml(a)}">${escapeHtml(localizeAttr(a, lang))}</option>`).join('');
+      attrSelect.value = current;
+    }
+    const xFirst = xantiSelect?.querySelector('option[value=""]');
+    if (xFirst) xFirst.textContent = t(lang, 'filter.allX');
+    const xTrue = xantiSelect?.querySelector('option[value="true"]');
+    if (xTrue) xTrue.textContent = t(lang, 'filter.carriers');
+    const xFalse = xantiSelect?.querySelector('option[value="false"]');
+    if (xFalse) xFalse.textContent = t(lang, 'filter.noX');
+  }
+
   searchInput?.addEventListener('input', () => {
     clearTimeout(debounce);
     debounce = setTimeout(() => {
@@ -311,6 +336,14 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({
   } else if (grid) {
     render(firstPage);
   }
+
+  // Cambio de idioma: re-render sin refetch (los valores nativos se conservan).
+  window.addEventListener('digidex:lang', (e) => {
+    lang = (e.detail && e.detail.lang) || currentLang();
+    rebuildFilterOptions();
+    if (lastData) render(lastData);
+    else if (grid) render(firstPage);
+  });
 </script>
 
 <style>

@@ -42,6 +42,7 @@ Nueva etapa del proyecto, construida sobre Astro y orientada a convertirse en un
 - Manejo de carga y errores.
 - Servicio centralizado para acceso a datos.
 - Interfaz orientada a escritorio, tablet y móvil.
+- Selector de idioma ES / EN con persistencia.
 
 ## Evolución planificada
 
@@ -161,7 +162,7 @@ npm run preview
 - [x] Paginación y filtros del servidor
 - [x] Rutas estables por ID con redirección heredada
 - [x] Evoluciones y fichas enriquecidas
-- [ ] Selector ES / EN
+- [x] Selector ES / EN
 - [ ] Sección de series / generaciones
 
 ## Autor
