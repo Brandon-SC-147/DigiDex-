@@ -1,0 +1,218 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getAllSeries, seriesHref, SERIES_GROUPS } from '../../data/series/index.js';
+import { t, normalizeLang } from '../../i18n/index.js';
+
+export const prerender = true;
+
+const lang = normalizeLang(Astro.url.searchParams.get('lang'));
+const groups = SERIES_GROUPS.map((g) => ({
+  ...g,
+  label: t(lang, `generations.group${g.id === 'classics' ? 'Classics' : g.id === 'new-eras' ? 'NewEras' : 'Recent'}`),
+  items: getAllSeries().filter((s) => s.group === g.id),
+}));
+const total = getAllSeries().length;
+---
+<Layout
+  title={`${t(lang, 'generations.title')} — DigiDex Web`}
+  description={t(lang, 'generations.heroDesc')}
+  lang={lang}
+>
+  <main class="dex-page-bg">
+    <div class="container-xl">
+      <div class="page-hero">
+        <div class="hero-kicker" data-i18n="generations.kicker">{t(lang, 'generations.kicker')}</div>
+        <h1 class="hero-title">
+          <span class="text-digimon-gradient" data-i18n="generations.title">{t(lang, 'generations.title')}</span>
+        </h1>
+        <p class="hero-desc" data-i18n="generations.heroDesc">{t(lang, 'generations.heroDesc')}</p>
+        <p class="hero-count">{t(lang, 'generations.seriesCount', { n: total })}</p>
+      </div>
+
+      {groups.map((g) => (
+        <section class="gen-section" aria-label={g.label}>
+          <h2 class="gen-section-title">
+            <span class="material-icons gen-section-icon" aria-hidden="true">{g.icon}</span>
+            {g.label}
+          </h2>
+          <div class="gen-cards">
+            {g.items.map((s) => (
+              <a class="gen-card hover-lift" href={seriesHref(s.slug)}>
+                <span class="gen-card-glow" style={`background:${s.accent}`} aria-hidden="true"></span>
+                <span class="gen-card-top">
+                  <span class="material-icons gen-card-icon" aria-hidden="true">{s.icon}</span>
+                  <span class="gen-card-period">{lang === 'en' && s.periodEn ? s.periodEn : s.period}</span>
+                </span>
+                <span class="gen-card-name">{s.name}</span>
+                <span class="gen-card-tagline">{lang === 'en' ? s.tagline.en : s.tagline.es}</span>
+                <span class="gen-card-desc">{lang === 'en' ? s.description.en : s.description.es}</span>
+                <span class="gen-card-cta">
+                  <span data-i18n="generations.explore">{t(lang, 'generations.explore')}</span>
+                  <span class="material-icons" aria-hidden="true">arrow_forward</span>
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  </main>
+</Layout>
+
+<style>
+  .page-hero {
+    padding-top: 8px;
+    text-align: center;
+    margin-bottom: 32px;
+  }
+
+  .hero-kicker {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--secondary);
+    text-transform: uppercase;
+  }
+
+  .hero-title {
+    font-size: clamp(30px, 5vw, 44px);
+    font-weight: 900;
+    letter-spacing: 0.5px;
+    margin: 10px 0 6px;
+  }
+
+  .hero-desc {
+    max-width: 600px;
+    margin: 0 auto;
+    color: rgba(255, 255, 255, 0.65);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .hero-count {
+    margin-top: 10px;
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.45);
+  }
+
+  .gen-section {
+    margin-bottom: 36px;
+  }
+
+  .gen-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #fff;
+    margin: 0 0 14px;
+  }
+
+  .gen-section-icon {
+    color: var(--secondary);
+    font-size: 20px;
+  }
+
+  .gen-cards {
+    display: grid;
+    gap: 18px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+
+  .gen-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 22px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--card-bg);
+    text-decoration: none;
+    overflow: hidden;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  }
+
+  .gen-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255, 204, 0, 0.45);
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5), 0 0 24px rgba(255, 204, 0, 0.08);
+  }
+
+  .gen-card-glow {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    opacity: 0.85;
+  }
+
+  .gen-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .gen-card-icon {
+    font-size: 30px;
+    color: var(--secondary);
+  }
+
+  .gen-card-period {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: rgba(255, 255, 255, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    border-radius: 999px;
+    padding: 3px 12px;
+  }
+
+  .gen-card-name {
+    font-size: 21px;
+    font-weight: 900;
+    letter-spacing: 0.3px;
+    color: #fff;
+    line-height: 1.25;
+    overflow-wrap: break-word;
+  }
+
+  .gen-card-tagline {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--secondary);
+  }
+
+  .gen-card-desc {
+    font-size: 14px;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.7);
+    flex: 1;
+  }
+
+  .gen-card-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--secondary);
+  }
+
+  .gen-card-cta .material-icons {
+    font-size: 18px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gen-card,
+    .gen-card:hover {
+      transform: none;
+    }
+  }
+</style>

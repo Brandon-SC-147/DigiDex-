@@ -1,0 +1,156 @@
+[
+  {
+    "slug": "adventure",
+    "name": "Digimon Adventure",
+    "period": "1999 – 2000",
+    "yearStart": 1999,
+    "format": "Serie de TV",
+    "formatEn": "TV series",
+    "group": "classics",
+    "icon": "explore",
+    "accent": "#ffcc00",
+    "tagline": { "es": "Donde todo comenzó", "en": "Where it all began" },
+    "description": {
+      "es": "Siete niños llegan al Mundo Digital y se unen a sus compañeros Digimon para detener a las fuerzas del mal.",
+      "en": "Seven kids arrive in the Digital World and join their partner Digimon to stop the forces of evil."
+    },
+    "featuredIds": [1, 16, 101, 85, 81, 117, 98, 83]
+  },
+  {
+    "slug": "adventure-02",
+    "name": "Digimon Adventure 02",
+    "period": "2000 – 2001",
+    "yearStart": 2000,
+    "format": "Serie de TV",
+    "formatEn": "TV series",
+    "group": "classics",
+    "icon": "group",
+    "accent": "#2de2e6",
+    "tagline": { "es": "Una nueva generación de Elegidos", "en": "A new generation of DigiDestined" },
+    "description": {
+      "es": "Nuevos Niños Elegidos protegen ambos mundos con la evolución Armor y la evolución DNA.",
+      "en": "New DigiDestined protect both worlds with Armor Evolution and DNA Digivolution."
+    },
+    "featuredIds": [349, 356, 399, 271]
+  },
+  {
+    "slug": "tamers",
+    "name": "Digimon Tamers",
+    "period": "2001 – 2002",
+    "yearStart": 2001,
+    "format": "Serie de TV",
+    "formatEn": "TV series",
+    "group": "classics",
+    "icon": "style",
+    "accent": "#ff6b2c",
+    "tagline": { "es": "Cuando el juego se vuelve real", "en": "When the game becomes real" },
+    "description": {
+      "es": "En un mundo donde Digimon es un juego de cartas, tres Tamers reciben Digimon reales.",
+      "en": "In a world where Digimon is a card game, three Tamers receive real Digimon."
+    },
+    "featuredIds": [477, 465, 341]
+  },
+  {
+    "slug": "frontier",
+    "name": "Digimon Frontier",
+    "period": "2002 – 2003",
+    "yearStart": 2002,
+    "format": "Serie de TV",
+    "formatEn": "TV series",
+    "group": "classics",
+    "icon": "bolt",
+    "accent": "#ab47bc",
+    "tagline": { "es": "Conviértete en Digimon", "en": "Become a Digimon" },
+    "description": {
+      "es": "Cinco jóvenes usan los Digispirits para transformarse ellos mismos en Digimon.",
+      "en": "Five kids use Digispirits to transform into Digimon themselves."
+    },
+    "featuredIds": [493, 593]
+  },
+  {
+    "slug": "savers",
+    "name": "Digimon Savers / Data Squad",
+    "period": "2006 – 2007",
+    "yearStart": 2006,
+    "format": "Serie de TV",
+    "formatEn": "TV series",
+    "group": "new-eras",
+    "icon": "shield",
+    "accent": "#e53935",
+    "tagline": { "es": "El poder del Digi-Soul", "en": "The power of Digi-Soul" },
+    "description": {
+      "es": "DATS, una agencia especial, investiga incidentes Digimon con el poder del Digi-Soul.",
+      "en": "DATS, a special agency, investigates Digimon incidents with the power of Digi-Soul."
+    },
+    "featuredIds": [799, 826, 824]
+  },
+  {
+    "slug": "xros-wars",
+    "name": "Digimon Xros Wars",
+    "period": "2010 – 2012",
+    "yearStart": 2010,
+    "format": "Serie de TV",
+    "formatEn": "TV series",
+    "group": "new-eras",
+    "icon": "hub",
+    "accent": "#26a69a",
+    "tagline": { "es": "La era del DigiXros", "en": "The DigiXros era" },
+    "description": {
+      "es": "Un joven general lidera un ejército de Digimon que se combinan mediante el DigiXros.",
+      "en": "A young general leads an army of Digimon that combine through DigiXros."
+    },
+    "featuredIds": [983]
+  },
+  {
+    "slug": "app-monsters",
+    "name": "Digimon Universe: App Monsters",
+    "period": "2016 – 2017",
+    "yearStart": 2016,
+    "format": "Serie de TV",
+    "formatEn": "TV series",
+    "group": "new-eras",
+    "icon": "smartphone",
+    "accent": "#0f62fe",
+    "tagline": { "es": "Digimon nacidos de tus apps", "en": "Digimon born from your apps" },
+    "description": {
+      "es": "Criaturas nacidas de aplicaciones de smartphone se unen a sus portadores humanos.",
+      "en": "Creatures born from smartphone apps join their human buddies."
+    },
+    "featuredIds": [1156]
+  },
+  {
+    "slug": "ghost-game",
+    "name": "Digimon Ghost Game",
+    "period": "2021 – 2023",
+    "yearStart": 2021,
+    "format": "Serie de TV",
+    "formatEn": "TV series",
+    "group": "recent",
+    "icon": "visibility",
+    "accent": "#9e9e9e",
+    "tagline": { "es": "Fantasmas holográficos", "en": "Hologram ghosts" },
+    "description": {
+      "es": "Fenómenos holográficos ocultan Digimon en el mundo humano; Hiro y Gammamon los investigan.",
+      "en": "Hologram phenomena hide Digimon in the human world; Hiro and Gammamon investigate them."
+    },
+    "featuredIds": [1372, 1360, 1397]
+  },
+  {
+    "slug": "liberator",
+    "name": "Digimon Liberator",
+    "period": "Desde 2024",
+    "periodEn": "Since 2024",
+    "yearStart": 2024,
+    "format": "Web novel + manga",
+    "formatEn": "Web novel + manga",
+    "group": "recent",
+    "icon": "casino",
+    "accent": "#ffb300",
+    "tagline": { "es": "El juego de cartas cobra vida", "en": "The card game comes to life" },
+    "description": {
+      "es": "Proyecto multimedia del juego de cartas Digimon, con web novel y manga en curso.",
+      "en": "Digimon Card Game multimedia project, with an ongoing web novel and manga."
+    },
+    "featuredIds": [1446, 482]
+  }
+]
