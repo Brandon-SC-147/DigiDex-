@@ -56,16 +56,42 @@ const canonical = canonicalProp || (site ? `${site}${currentPath}` : currentPath
           <a href="/dex" class:list={['header-link', { active: currentPath.startsWith('/dex') }]}>
             <span class="material-icons">radar</span> <span data-i18n="header.dex">{t(lang, 'header.dex')}</span>
           </a>
-          <div
-            class="lang-switch"
-            role="group"
-            aria-label={t(lang, 'header.langLabel')}
-            data-i18n-aria="header.langLabel"
-          >
-            <span class="material-icons lang-globe" aria-hidden="true">language</span>
-            <button type="button" class="lang-btn" data-lang-btn="es" aria-pressed={lang === 'es' ? 'true' : 'false'}>ES</button>
-            <span class="lang-sep" aria-hidden="true">|</span>
-            <button type="button" class="lang-btn" data-lang-btn="en" aria-pressed={lang === 'en' ? 'true' : 'false'}>EN</button>
+          <div class="lang-select" data-lang-select>
+            <button
+              type="button"
+              class="lang-toggle"
+              data-lang-toggle
+              aria-haspopup="menu"
+              aria-expanded="false"
+              aria-label={t(lang, 'header.langLabel')}
+            >
+              <span class="material-icons lang-globe" aria-hidden="true">language</span>
+              <span class="lang-label-full" data-lang-label>{lang === 'en' ? 'English' : 'Español'}</span>
+              <span class="lang-label-short" data-lang-label-short>{lang === 'en' ? 'EN' : 'ES'}</span>
+              <span class="material-icons lang-chevron" aria-hidden="true">expand_more</span>
+            </button>
+            <div class="lang-menu" role="menu" data-lang-menu hidden>
+              <button
+                type="button"
+                class="lang-option"
+                role="menuitemradio"
+                aria-checked={lang === 'es' ? 'true' : 'false'}
+                data-lang-option="es"
+              >
+                <span class="lang-option-text">Español</span>
+                <span class="material-icons lang-check" aria-hidden="true">check</span>
+              </button>
+              <button
+                type="button"
+                class="lang-option"
+                role="menuitemradio"
+                aria-checked={lang === 'en' ? 'true' : 'false'}
+                data-lang-option="en"
+              >
+                <span class="lang-option-text">English</span>
+                <span class="material-icons lang-check" aria-hidden="true">check</span>
+              </button>
+            </div>
           </div>
           <a
             href="https://digimon.net/"
@@ -96,8 +122,80 @@ const canonical = canonicalProp || (site ? `${site}${currentPath}` : currentPath
       </div>
     </footer>
     <script>
-      import { initLanguage } from '../i18n/index.js';
+      import { getStoredLang, setLanguage, initLanguage } from '../i18n/index.js';
+
+      // Arranque existente: aplica el idioma guardado al DOM estático y avisa
+      // a las páginas (evento `digidex:lang` para re-render dinámico).
       initLanguage();
+
+      const LANG_NAMES = { es: 'Español', en: 'English' };
+      const LANG_SHORT = { es: 'ES', en: 'EN' };
+
+      const select = document.querySelector('[data-lang-select]');
+      const toggle = select?.querySelector('[data-lang-toggle]');
+      const menu = select?.querySelector('[data-lang-menu]');
+      const options = [...(select?.querySelectorAll('[data-lang-option]') ?? [])];
+
+      function paint(lang) {
+        const label = select?.querySelector('[data-lang-label]');
+        const short = select?.querySelector('[data-lang-label-short]');
+        if (label) label.textContent = LANG_NAMES[lang] ?? LANG_NAMES.es;
+        if (short) short.textContent = LANG_SHORT[lang] ?? LANG_SHORT.es;
+        options.forEach((opt) => {
+          const active = opt.getAttribute('data-lang-option') === lang;
+          opt.classList.toggle('active', active);
+          opt.setAttribute('aria-checked', active ? 'true' : 'false');
+        });
+      }
+
+      function setOpen(open) {
+        if (!toggle || !menu) return;
+        menu.hidden = !open;
+        toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+        toggle.classList.toggle('open', open);
+      }
+
+      function isOpen() {
+        return !!menu && !menu.hidden;
+      }
+
+      toggle?.addEventListener('click', () => setOpen(!isOpen()));
+
+      options.forEach((opt) => {
+        opt.addEventListener('click', () => {
+          setLanguage(opt.getAttribute('data-lang-option'));
+          paint(opt.getAttribute('data-lang-option'));
+          setOpen(false);
+          toggle?.focus();
+        });
+      });
+
+      document.addEventListener('pointerdown', (e) => {
+        if (isOpen() && select && !select.contains(e.target)) setOpen(false);
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && isOpen()) {
+          setOpen(false);
+          toggle?.focus();
+        }
+      });
+
+      select?.addEventListener('keydown', (e) => {
+        if (!isOpen() || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+        e.preventDefault();
+        const idx = options.indexOf(document.activeElement);
+        const next = e.key === 'ArrowDown'
+          ? options[(idx + 1) % options.length]
+          : options[(idx - 1 + options.length) % options.length];
+        next?.focus();
+      });
+
+      select?.addEventListener('focusout', (e) => {
+        if (isOpen() && select && !select.contains(e.relatedTarget)) setOpen(false);
+      });
+
+      paint(getStoredLang());
     </script>
   </body>
 </html>
@@ -168,47 +266,140 @@ const canonical = canonicalProp || (site ? `${site}${currentPath}` : currentPath
     gap: 4px;
   }
 
-  .lang-switch {
+  .lang-select {
+    position: relative;
+    margin: 0 6px;
+  }
+
+  .lang-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 2px;
-    margin: 0 6px;
-    padding: 4px 8px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    gap: 6px;
+    padding: 7px 10px;
     border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
     background: rgba(255, 255, 255, 0.04);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .lang-toggle:hover {
+    border-color: rgba(255, 204, 0, 0.6);
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .lang-toggle:focus-visible {
+    outline: 2px solid var(--secondary);
+    outline-offset: 2px;
+    border-color: var(--secondary);
+    box-shadow: 0 0 12px rgba(255, 204, 0, 0.25);
+  }
+
+  .lang-toggle.open {
+    border-color: var(--secondary);
   }
 
   .lang-globe {
-    font-size: 16px;
-    color: rgba(255, 255, 255, 0.55);
-    margin-right: 2px;
-  }
-
-  .lang-btn {
-    background: transparent;
-    border: none;
-    color: rgba(255, 255, 255, 0.6);
-    font-size: 12px;
-    font-weight: 700;
-    letter-spacing: 1px;
-    cursor: pointer;
-    padding: 2px 6px;
-    border-radius: 6px;
-    font-family: inherit;
-  }
-
-  .lang-btn:hover {
-    color: #fff;
-  }
-
-  .lang-btn.active {
+    font-size: 17px;
     color: var(--secondary);
   }
 
-  .lang-sep {
-    color: rgba(255, 255, 255, 0.3);
-    font-size: 12px;
+  .lang-label-short {
+    display: none;
+  }
+
+  .lang-chevron {
+    font-size: 18px;
+    color: rgba(255, 255, 255, 0.6);
+    transition: transform 0.2s ease;
+  }
+
+  .lang-toggle.open .lang-chevron {
+    transform: rotate(180deg);
+  }
+
+  .lang-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 168px;
+    padding: 6px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    background: rgba(21, 27, 46, 0.98);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+    z-index: 100;
+  }
+
+  .lang-menu[hidden] {
+    display: none;
+  }
+
+  .lang-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 9px 12px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.75);
+    font-size: 13.5px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+
+  .lang-option:hover {
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+  }
+
+  .lang-option:focus-visible {
+    outline: 2px solid var(--secondary);
+    outline-offset: -2px;
+  }
+
+  .lang-option.active {
+    background: rgba(255, 204, 0, 0.1);
+    color: var(--secondary);
+    font-weight: 800;
+  }
+
+  .lang-check {
+    font-size: 18px;
+    opacity: 0;
+  }
+
+  .lang-option.active .lang-check {
+    opacity: 1;
+    color: var(--secondary);
+  }
+
+  @media (max-width: 640px) {
+    .lang-select {
+      margin: 0 2px;
+    }
+
+    .lang-toggle {
+      padding: 7px 9px;
+    }
+
+    .lang-label-full {
+      display: none;
+    }
+
+    .lang-label-short {
+      display: inline;
+    }
   }
 
   .header-link {
