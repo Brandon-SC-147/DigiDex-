@@ -1,6 +1,4 @@
-/* DigiDex Web — estilos globales (migración Astro, sin Quasar) */
-
-:root {
+/* DigiDex Web — estilos globales (migración Astro, sin Quasar) */:root {
   --primary: #0f62fe; /* Digital Blue */
   --secondary: #ffcc00; /* Digimon Yellow */
   --accent: #ff6b2c; /* Digimon Orange */
@@ -37,6 +35,14 @@ body {
 
 a {
   color: inherit;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--secondary);
+  outline-offset: 2px;
 }
 
 img {
@@ -170,6 +176,7 @@ img {
 .level-Ultimate { background: #ef6c00; }
 .level-Mega { background: #e53935; }
 .level-Armor { background: #ffb300; color: #3e2700; }
+.level-Hybrid { background: #00897b; }
 .level-Unknown { background: #616161; }
 
 /* Iconos Material */

@@ -14,6 +14,7 @@ const { digimon } = Astro.props;
 const LEVEL_CLASSES: Record<string, string> = {
   Fresh: 'level-Fresh',
   'In Training': 'level-InTraining',
+  Training: 'level-InTraining',
   Rookie: 'level-Rookie',
   Champion: 'level-Champion',
   Ultimate: 'level-Ultimate',
@@ -26,7 +27,16 @@ const detailHref = `/dex/${encodeURIComponent(digimon.name)}`;
 ---
 <article class="digi-card hover-lift">
   <div class="img-container">
-    <img src={digimon.img} alt={digimon.name} class="digi-img" loading="lazy" />
+    <img
+      src={digimon.img}
+      alt={digimon.name}
+      class="digi-img"
+      loading="lazy"
+      decoding="async"
+      width="240"
+      height="180"
+      onerror="this.onerror=null;this.src='/favicon.svg'"
+    />
     <div class="scan-line"></div>
   </div>
   <div class="digi-body">

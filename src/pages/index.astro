@@ -1,5 +1,14 @@
 ---
 import Layout from '../layouts/Layout.astro';
+import { getCatalog } from '../services/digimonService.js';
+
+let totalCount = 1488;
+try {
+  const data = await getCatalog();
+  if (Array.isArray(data) && data.length > 0) totalCount = data.length;
+} catch {
+  // Build offline: se mantiene el conteo por defecto.
+}
 ---
 <Layout title="DigiDex Web — Explora el Mundo Digital">
   <main class="welcome-page">
@@ -20,7 +29,7 @@ import Layout from '../layouts/Layout.astro';
 
           <div class="welcome-subtitle">Explora el Mundo Digital</div>
 
-          <div class="divider-icon material-icons">edit</div>
+          <div class="divider-icon material-icons">hub</div>
 
           <p class="welcome-desc">
             Descubre Digimon, consulta sus características, niveles, atributos e información
@@ -30,15 +39,15 @@ import Layout from '../layouts/Layout.astro';
           <div class="feature-row">
             <span class="badge badge-outline feature-chip">
               <span class="material-icons chip-icon chip-yellow">pets</span>
-              <span id="digimon-count">209</span>+ Digimon
+              <span id="digimon-count">{totalCount}</span>+ Digimon
             </span>
             <span class="badge badge-outline feature-chip">
               <span class="material-icons chip-icon chip-cyan">trending_up</span>
-              Niveles de evolución
+              Nivel y atributo
             </span>
             <span class="badge badge-outline feature-chip">
-              <span class="material-icons chip-icon chip-orange">search</span>
-              Búsqueda rápida
+              <span class="material-icons chip-icon chip-orange">timeline</span>
+              Evoluciones y skills
             </span>
           </div>
 
@@ -55,21 +64,6 @@ import Layout from '../layouts/Layout.astro';
     </div>
   </main>
 </Layout>
-
-<script>
-  import { getAllDigimons } from '../services/digimonService.js';
-
-  (async () => {
-    try {
-      const data = await getAllDigimons();
-      if (Array.isArray(data) && data.length > 0) {
-        document.getElementById('digimon-count').textContent = String(data.length);
-      }
-    } catch {
-      // El conteo por defecto se mantiene si la API no responde.
-    }
-  })();
-</script>
 
 <style>
   .welcome-page {

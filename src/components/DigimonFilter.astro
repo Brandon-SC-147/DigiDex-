@@ -1,10 +1,18 @@
 ---
 /**
- * Digivice Radar — búsqueda por nombre y filtro por nivel.
+ * Digivice Radar — búsqueda por nombre, filtros por nivel/atributo y orden.
  * Los ids son el contrato con el script de `src/pages/dex/index.astro`:
  * - `#dex-search` (input)
- * - `#dex-level` (select, opciones inyectadas en cliente)
+ * - `#dex-level` (select)
+ * - `#dex-attribute` (select)
+ * - `#dex-sort` (select)
+ * - `#dex-clear` (button)
  */
+interface Props {
+  levels?: string[];
+  attributes?: string[];
+}
+const { levels = [], attributes = [] } = Astro.props;
 ---
 <section class="filter-card">
   <div class="filter-title">
@@ -32,9 +40,37 @@
       <span class="material-icons input-icon">signal_cellular_alt</span>
       <select id="dex-level">
         <option value="">Todos los niveles</option>
+        {levels.map((l) => <option value={l}>{l}</option>)}
       </select>
     </div>
   </div>
+
+  <div class="filter-group">
+    <label class="filter-label" for="dex-attribute">Atributo</label>
+    <div class="input-wrap">
+      <span class="material-icons input-icon">category</span>
+      <select id="dex-attribute">
+        <option value="">Todos los atributos</option>
+        {attributes.map((a) => <option value={a}>{a}</option>)}
+      </select>
+    </div>
+  </div>
+
+  <div class="filter-group">
+    <label class="filter-label" for="dex-sort">Orden</label>
+    <div class="input-wrap">
+      <span class="material-icons input-icon">sort</span>
+      <select id="dex-sort">
+        <option value="name-asc">Nombre A–Z</option>
+        <option value="name-desc">Nombre Z–A</option>
+        <option value="level">Por nivel</option>
+      </select>
+    </div>
+  </div>
+
+  <button class="btn btn-outline filter-reset" id="dex-clear" type="button">
+    <span class="material-icons">backspace</span> Limpiar
+  </button>
 </section>
 
 <style>
@@ -107,5 +143,12 @@
   .input-wrap input:focus,
   .input-wrap select:focus {
     border-bottom-color: var(--secondary);
+  }
+
+  .filter-reset {
+    width: 100%;
+    margin-top: 16px;
+    padding: 10px 16px;
+    font-size: 13px;
   }
 </style>

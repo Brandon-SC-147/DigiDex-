@@ -1,42 +1,207 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { getAllDigimons, getDigimonByName } from '../../services/digimonService.js';
+import {
+  getCatalog,
+  getDigimonById,
+  normalizeDetail,
+  detailRawCache,
+  LEVEL_CLASSES,
+} from '../../services/digimonService.js';
 
 export async function getStaticPaths() {
-  const digimons = await getAllDigimons();
-  return digimons.map((d) => ({
-    params: { name: d.name },
-    props: { digimon: d },
-  }));
+  try {
+    const catalog = await getCatalog();
+    return catalog.map((c) => ({
+      params: { name: c.name },
+      props: { catalogName: c.name },
+    }));
+  } catch {
+    return [];
+  }
 }
 
 const { name } = Astro.params;
 
-let digimon = Astro.props.digimon ?? null;
+let catalog = [];
+try {
+  catalog = await getCatalog();
+} catch {
+  catalog = [];
+}
+const nameSet = new Set(catalog.map((c) => c.name));
 
-if (!digimon) {
-  try {
-    const data = await getDigimonByName(name);
-    digimon = Array.isArray(data) && data.length > 0 ? data[0] : null;
-  } catch {
-    digimon = null;
+let digimon = null;
+try {
+  const hit = catalog.find((c) => c.name.toLowerCase() === String(name).toLowerCase());
+  if (hit) {
+    const raw = detailRawCache.get(hit.id);
+    digimon = raw ? normalizeDetail(raw) : await getDigimonById(hit.id);
+  } else if (Astro.props.catalogName) {
+    const raw = [...detailRawCache.values()].find(
+      (r) => r.name.toLowerCase() === String(name).toLowerCase(),
+    );
+    digimon = raw ? normalizeDetail(raw) : null;
   }
+} catch {
+  digimon = null;
 }
 
-const LEVEL_CLASSES = {
-  Fresh: 'level-Fresh',
-  'In Training': 'level-InTraining',
-  Rookie: 'level-Rookie',
-  Champion: 'level-Champion',
-  Ultimate: 'level-Ultimate',
-  Mega: 'level-Mega',
-  Armor: 'level-Armor',
-};
+function esc(s) {
+  return String(s ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;');
+}
 
 const levelClass = digimon ? (LEVEL_CLASSES[digimon.level] ?? 'level-Unknown') : 'level-Unknown';
-const title = digimon ? `${digimon.name} — DigiDex Web` : 'No encontrado — DigiDex Web';
+const badgeClass = 'badge detail-badge ' + levelClass;
+const title = digimon ? digimon.name + ' — DigiDex Web' : 'No encontrado — DigiDex Web';
+const description = digimon
+  ? 'Ficha de ' + digimon.name + ' (' + digimon.level + ', ' + digimon.attributes.join('/') + '). Descripción, skills y evoluciones en DigiDex Web.'
+  : 'Digimon no encontrado en DigiDex Web.';
+const jsonLd = digimon
+  ? JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'CreativeWork',
+      name: digimon.name,
+      image: digimon.img,
+      description: digimon.description || description,
+    })
+  : '';
+
+const idx = digimon ? catalog.findIndex((c) => c.name === digimon.name) : -1;
+const prev = idx > 0 ? catalog[idx - 1] : null;
+const next = idx >= 0 && idx < catalog.length - 1 ? catalog[idx + 1] : null;
+
+let navHtml = '';
+if (prev) {
+  navHtml +=
+    '<a class="btn btn-outline nav-btn" href="/dex/' +
+    encodeURIComponent(prev.name) +
+    '"><span class="material-icons">arrow_back</span> ' +
+    esc(prev.name) +
+    '</a>';
+}
+if (next) {
+  navHtml +=
+    '<a class="btn btn-outline nav-btn" href="/dex/' +
+    encodeURIComponent(next.name) +
+    '">' +
+    esc(next.name) +
+    ' <span class="material-icons">arrow_forward</span></a>';
+}
+const hasNav = navHtml.length > 0;
+
+function evoCardHtml(e) {
+  const inner =
+    '<div class="img-container evo-img-wrap">' +
+    '<img src="' +
+    esc(e.img || '/favicon.svg') +
+    '" alt="' +
+    esc(e.name) +
+    '" class="digi-img" loading="lazy" decoding="async" width="240" height="140" onerror="this.onerror=null;this.src=\'/favicon.svg\'" />' +
+    '</div>' +
+    '<div class="digi-body"><div class="digi-name evo-name">' +
+    esc(e.name) +
+    '</div>' +
+    (e.condition ? '<div class="evo-cond">' + esc(e.condition) + '</div>' : '') +
+    '</div>';
+  if (nameSet.has(e.name)) {
+    return (
+      '<a class="digi-card hover-lift evo-card" href="/dex/' +
+      encodeURIComponent(e.name) +
+      '">' +
+      inner +
+      '</a>'
+    );
+  }
+  return '<div class="digi-card evo-card">' + inner + '</div>';
+}
+
+function evoSection(list) {
+  const shown = list.slice(0, 12).map(evoCardHtml).join('');
+  const rest = list.slice(12).map(evoCardHtml).join('');
+  if (!rest) return shown;
+  return (
+    shown +
+    '<details class="evo-more"><summary class="evo-summary">Ver ' +
+    (list.length - 12) +
+    ' más</summary><div class="evo-grid">' +
+    rest +
+    '</div></details>'
+  );
+}
+
+const priorHtml = digimon ? evoSection(digimon.priorEvolutions) : '';
+const nextHtml = digimon ? evoSection(digimon.nextEvolutions) : '';
+const hasPrior = digimon && digimon.priorEvolutions.length > 0;
+const hasNext = digimon && digimon.nextEvolutions.length > 0;
+
+const related = digimon
+  ? catalog.filter((c) => c.nativeLevel === digimon.nativeLevel && c.name !== digimon.name).slice(0, 6)
+  : [];
+function relatedCardHtml(d) {
+  const cls = LEVEL_CLASSES[d.level] ?? 'level-Unknown';
+  return (
+    '<a class="digi-card hover-lift" href="/dex/' +
+    encodeURIComponent(d.name) +
+    '">' +
+    '<div class="img-container">' +
+    '<img src="' +
+    esc(d.img) +
+    '" alt="' +
+    esc(d.name) +
+    '" class="digi-img" loading="lazy" decoding="async" width="240" height="180" onerror="this.onerror=null;this.src=\'/favicon.svg\'" />' +
+    '<div class="scan-line"></div></div>' +
+    '<div class="digi-body"><div>' +
+    '<div class="digi-name">' +
+    esc(d.name) +
+    '</div>' +
+    '<div class="digi-meta"><span class="badge ' +
+    cls +
+    '">' +
+    esc(d.level) +
+    '</span><span class="digi-kind">DIGIMON</span></div>' +
+    '</div></div></a>'
+  );
+}
+const relatedHtml = related.map(relatedCardHtml).join('');
+const hasRelated = related.length > 0;
+
+const visibleSkills = digimon ? digimon.skills.slice(0, 10) : [];
+const restSkills = digimon ? digimon.skills.slice(10) : [];
+const hasSkills = digimon && digimon.skills.length > 0;
+function skillHtml(s) {
+  return (
+    '<li class="skill-item"><div class="skill-name">' +
+    esc(s.name) +
+    '</div>' +
+    (s.translation ? '<div class="skill-trans">' + esc(s.translation) + '</div>' : '') +
+    (s.description ? '<div class="skill-desc">' + esc(s.description) + '</div>' : '') +
+    '</li>'
+  );
+}
+const skillsHtml = visibleSkills.map(skillHtml).join('');
+const restSkillsHtml = restSkills.map(skillHtml).join('');
+const hasRestSkills = restSkills.length > 0;
+const restSkillsCount = restSkills.length;
+const attrChips = digimon ? digimon.attributes.map((a) => '<span class="chip chip-info">' + esc(a) + '</span>').join('') : '';
+const typeChips = digimon ? digimon.types.map((t) => '<span class="chip chip-neutral">' + esc(t) + '</span>').join('') : '';
+const fieldChips = digimon
+  ? digimon.fields
+      .map(
+        (f) =>
+          '<span class="chip chip-field">' +
+          (f.image ? '<img src="' + esc(f.image) + '" alt="" width="18" height="18" loading="lazy" />' : '') +
+          esc(f.name) +
+          '</span>',
+      )
+      .join('')
+  : '';
 ---
-<Layout title={title}>
+<Layout title={title} description={description}>
+  {jsonLd ? <span id="json-ld" data-json={jsonLd} hidden></span> : null}
   <main class="dex-page-bg">
     <div class="container detail-container">
       <a href="/dex" class="back-link">
@@ -52,41 +217,125 @@ const title = digimon ? `${digimon.name} — DigiDex Web` : 'No encontrado — D
           </div>
         </section>
       ) : (
-        <div class="detail-grid">
-          <section class="detail-visual">
-            <img src={digimon.img} alt={digimon.name} class="detail-img" />
-            <h1 class="detail-name">{digimon.name}</h1>
-            <span class={`badge detail-badge ${levelClass}`}>{digimon.level}</span>
-          </section>
+        <div>
+          <div class="detail-grid">
+            <section class="detail-visual">
+              <img
+                src={digimon.img}
+                alt={digimon.name}
+                class="detail-img"
+                width="320"
+                height="320"
+                onerror="this.onerror=null;this.src='/favicon.svg'"
+              />
+              <h1 class="detail-name">{digimon.name}</h1>
+              <span class={badgeClass}>{digimon.level}</span>
+              <div class="native-level">Etapa: {digimon.nativeLevel}</div>
+              {digimon.xAntibody ? <div class="xanti">X-Antibody</div> : null}
+              {hasNav ? <nav class="detail-nav" set:html={navHtml} /> : null}
+            </section>
 
-          <section>
-            <div class="detail-heading">DATOS DE ANÁLISIS</div>
-            <ul class="detail-list">
-              <li class="detail-item">
-                <span class="material-icons item-icon icon-yellow">fingerprint</span>
-                <span>
-                  <span class="item-caption">NOMBRE</span>
-                  <span class="item-value">{digimon.name}</span>
-                </span>
-              </li>
-              <li class="detail-item">
-                <span class="material-icons item-icon icon-cyan">trending_up</span>
-                <span>
-                  <span class="item-caption">NIVEL DE EVOLUCIÓN</span>
-                  <span class="item-value">{digimon.level}</span>
-                </span>
-              </li>
-            </ul>
-            <div class="data-note">
-              <span class="material-icons note-icon">info_outline</span>
-              Datos obtenidos de la API pública de Digimon.
-            </div>
-          </section>
+            <section>
+              <div class="detail-heading">DATOS DE ANÁLISIS</div>
+              <ul class="detail-list">
+                <li class="detail-item">
+                  <span class="material-icons item-icon icon-yellow">fingerprint</span>
+                  <span>
+                    <span class="item-caption">NOMBRE</span>
+                    <span class="item-value">{digimon.name}</span>
+                  </span>
+                </li>
+                <li class="detail-item">
+                  <span class="material-icons item-icon icon-cyan">trending_up</span>
+                  <span>
+                    <span class="item-caption">NIVEL DE EVOLUCIÓN</span>
+                    <span class="item-value">{digimon.level}</span>
+                  </span>
+                </li>
+                <li class="detail-item">
+                  <span class="material-icons item-icon icon-orange">category</span>
+                  <span>
+                    <span class="item-caption">ATRIBUTO</span>
+                    <span class="item-value">{digimon.attributes.join(' · ') || '—'}</span>
+                  </span>
+                </li>
+                <li class="detail-item">
+                  <span class="material-icons item-icon icon-green">pets</span>
+                  <span>
+                    <span class="item-caption">TIPO</span>
+                    <span class="item-value">{digimon.types.join(' · ') || '—'}</span>
+                  </span>
+                </li>
+              </ul>
+              <div class="data-note">
+                <span class="material-icons note-icon">info_outline</span>
+                Datos de Digi-API (digi-api.com), proyecto fan sin afiliación con Bandai.
+              </div>
+            </section>
+          </div>
+
+          {digimon.description ? (
+            <section class="detail-section">
+              <h2 class="section-title">Descripción</h2>
+              <p class="desc-text">{digimon.description}</p>
+            </section>
+          ) : null}
+
+          {fieldChips ? (
+            <section class="detail-section">
+              <h2 class="section-title">Fields</h2>
+              <div class="chip-row" set:html={fieldChips}></div>
+            </section>
+          ) : null}
+
+          {hasSkills ? (
+            <section class="detail-section">
+              <h2 class="section-title">Skills ({digimon.skills.length})</h2>
+              <ul class="skill-list" set:html={skillsHtml}></ul>
+              {hasRestSkills ? (
+                <details class="evo-more">
+                  <summary class="evo-summary">Ver {restSkillsCount} skills más</summary>
+                  <ul class="skill-list" set:html={restSkillsHtml}></ul>
+                </details>
+              ) : null}
+            </section>
+          ) : null}
+
+          {hasPrior ? (
+            <section class="detail-section">
+              <h2 class="section-title">Evoluciona desde ({digimon.priorEvolutions.length})</h2>
+              <div class="evo-grid" set:html={priorHtml}></div>
+            </section>
+          ) : null}
+
+          {hasNext ? (
+            <section class="detail-section">
+              <h2 class="section-title">Evoluciona a ({digimon.nextEvolutions.length})</h2>
+              <div class="evo-grid" set:html={nextHtml}></div>
+            </section>
+          ) : null}
+
+          {hasRelated ? (
+            <section class="detail-section">
+              <h2 class="section-title">Otros nivel {digimon.level}</h2>
+              <div class="dex-grid related-grid" set:html={relatedHtml}></div>
+            </section>
+          ) : null}
         </div>
       )}
     </div>
   </main>
 </Layout>
+
+<script>
+  const holder = document.getElementById('json-ld');
+  if (holder && holder.dataset.json) {
+    const s = document.createElement('script');
+    s.type = 'application/ld+json';
+    s.textContent = holder.dataset.json;
+    document.head.appendChild(s);
+  }
+</script>
 
 <style>
   .detail-container {
@@ -156,6 +405,45 @@ const title = digimon ? `${digimon.name} — DigiDex Web` : 'No encontrado — D
     font-size: 16px;
   }
 
+  .native-level {
+    margin-top: 8px;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.55);
+  }
+
+  .xanti {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(45, 226, 230, 0.6);
+    color: var(--info);
+  }
+
+  .detail-nav {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 18px;
+  }
+
+  .detail-nav:empty {
+    display: none;
+  }
+
+  .nav-btn {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 12px;
+    max-width: 48%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
   .detail-heading {
     font-size: 18px;
     font-weight: 800;
@@ -191,6 +479,8 @@ const title = digimon ? `${digimon.name} — DigiDex Web` : 'No encontrado — D
 
   .icon-yellow { color: var(--secondary); }
   .icon-cyan { color: var(--info); }
+  .icon-orange { color: var(--accent); }
+  .icon-green { color: var(--positive); }
 
   .item-caption {
     display: block;
@@ -250,6 +540,160 @@ const title = digimon ? `${digimon.name} — DigiDex Web` : 'No encontrado — D
   .state-sub {
     color: rgba(255, 255, 255, 0.55);
     margin-top: 6px;
+  }
+
+  .detail-section {
+    max-width: 1000px;
+    margin: 32px auto 0;
+  }
+
+  .section-title {
+    font-size: 16px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #fff;
+    margin-bottom: 12px;
+  }
+
+  .desc-text {
+    color: rgba(255, 255, 255, 0.8);
+    line-height: 1.7;
+    font-size: 15px;
+    background: var(--card-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 18px;
+    margin: 0;
+  }
+
+  .chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    font-size: 13px;
+    font-weight: 600;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .chip-info {
+    border-color: rgba(45, 226, 230, 0.5);
+    color: var(--info);
+  }
+
+  .chip-neutral {
+    color: rgba(255, 255, 255, 0.8);
+  }
+
+  .chip-field {
+    color: var(--secondary);
+    border-color: rgba(255, 204, 0, 0.4);
+  }
+
+  .skill-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 700px) {
+    .skill-list {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  .skill-item {
+    background: var(--card-bg);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+
+  .skill-name {
+    font-weight: 800;
+    color: var(--secondary);
+    font-size: 15px;
+  }
+
+  .skill-trans {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.5);
+    font-style: italic;
+  }
+
+  .skill-desc {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .evo-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    justify-items: center;
+  }
+
+  .evo-card {
+    text-decoration: none;
+  }
+
+  .evo-img-wrap {
+    height: 140px;
+  }
+
+  .evo-name {
+    font-size: 13px;
+  }
+
+  .evo-cond {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 4px;
+    line-height: 1.4;
+  }
+
+  .evo-more {
+    margin-top: 12px;
+  }
+
+  .evo-more .evo-grid {
+    margin-top: 12px;
+  }
+
+  .evo-summary {
+    cursor: pointer;
+    display: inline-block;
+    padding: 10px 22px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .evo-summary:hover {
+    border-color: var(--secondary);
+    color: var(--secondary);
+  }
+
+  .related-grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    justify-items: center;
   }
 
   @keyframes float {

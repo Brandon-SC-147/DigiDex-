@@ -1,8 +1,26 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import DigimonFilter from '../../components/DigimonFilter.astro';
+import DigimonCard from '../../components/DigimonCard.astro';
+import { getCatalog, LEVEL_ORDER } from '../../services/digimonService.js';
+
+let digimons = [];
+let buildError = false;
+try {
+  digimons = await getCatalog();
+} catch {
+  buildError = true;
+}
+
+const levels = LEVEL_ORDER.filter((l) => digimons.some((d) => d.level === l));
+const attributes = [...new Set(digimons.flatMap((d) => d.attributes))].sort();
+const PAGE_SIZE = 24;
+const initialVisible = digimons.slice(0, PAGE_SIZE);
 ---
-<Layout title="Catálogo — DigiDex Web">
+<Layout
+  title="Catálogo — DigiDex Web"
+  description="Catálogo de Digimon: busca por nombre, filtra por nivel y atributo, y consulta la ficha completa con evoluciones y skills."
+>
   <main class="dex-page-bg">
     <div class="container-xl">
       <div class="page-hero">
@@ -11,64 +29,68 @@ import DigimonFilter from '../../components/DigimonFilter.astro';
           <span class="text-digimon-gradient">Explora</span> el Mundo Digital
         </h1>
         <p class="hero-desc">
-          Consulta los Digimon del catálogo, sus niveles de evolución e información detallada de
-          cada criatura digital.
+          Consulta los Digimon del catálogo, filtra por nivel y atributo, y abre la ficha
+          completa de cada criatura digital.
         </p>
       </div>
 
       <div class="dex-layout">
-        <!-- Búsqueda / Filtros -->
         <aside class="dex-sidebar">
           <div class="sticky">
-            <DigimonFilter />
+            <DigimonFilter levels={levels} attributes={attributes} />
 
             <section class="counter-card">
-              <div class="counter-value" id="dex-count">0</div>
+              <div class="counter-value" id="dex-count">{digimons.length}</div>
               <div class="counter-label">DIGIMONS ENCONTRADOS</div>
             </section>
           </div>
         </aside>
 
-        <!-- Resultados -->
-        <section class="dex-results">
+        <section class="dex-results" id="dex-results">
           <div class="results-toolbar">
             <span class="material-icons toolbar-icon">storage</span>
             <span class="results-title">Registros del Dex</span>
-            <span class="results-meta" id="dex-meta"></span>
+            <span class="results-meta" id="dex-meta">{digimons.length > 0 ? `Página 1 de ${Math.ceil(digimons.length / PAGE_SIZE)} · ${digimons.length} totales` : ''}</span>
           </div>
 
-          <div id="dex-loading" class="state-block">
-            <div class="spinner" aria-hidden="true"></div>
-            <div class="state-text">Sincronizando con el Mundo Digital...</div>
-          </div>
-
-          <div id="dex-error" class="error-card" hidden>
-            <div class="state-block">
-              <span class="material-icons state-icon error-icon">cloud_off</span>
-              <div class="state-heading">No se pudo conectar con la API</div>
-              <div class="state-sub">Revisa tu conexión o inténtalo de nuevo en unos segundos.</div>
-              <button class="btn btn-outline" id="dex-retry" type="button">
-                <span class="material-icons">refresh</span> Reintentar
-              </button>
+          {buildError ? (
+            <div id="dex-error" class="error-card">
+              <div class="state-block">
+                <span class="material-icons state-icon error-icon">cloud_off</span>
+                <div class="state-heading">No se pudo conectar con la API</div>
+                <div class="state-sub">Revisa tu conexión o inténtalo de nuevo en unos segundos.</div>
+                <button class="btn btn-outline" id="dex-retry" type="button">
+                  <span class="material-icons">refresh</span> Reintentar
+                </button>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div>
+              <div id="dex-empty" class="empty-state" hidden>
+                <span class="material-icons state-icon">search_off</span>
+                <div class="state-heading">No se encontraron resultados</div>
+                <div class="state-sub">Prueba con otro nombre o quita los filtros.</div>
+              </div>
 
-          <div id="dex-empty" class="empty-state" hidden>
-            <span class="material-icons state-icon">search_off</span>
-            <div class="state-heading">No se encontraron resultados</div>
-            <div class="state-sub">Prueba con otro nombre o quita el filtro de nivel.</div>
-          </div>
+              <div id="dex-grid" class="dex-grid">
+                {initialVisible.map((d) => <DigimonCard digimon={d} />)}
+              </div>
 
-          <div id="dex-grid" class="dex-grid" hidden></div>
+              <nav class="pagination" id="dex-pagination" aria-label="Paginación del Dex"></nav>
+              <noscript>
+                <p class="noscript-note">Activa JavaScript para filtrar y paginar el catálogo completo.</p>
+              </noscript>
+            </div>
+          )}
         </section>
       </div>
     </div>
   </main>
+
+  <script type="application/json" id="dex-data" set:html={JSON.stringify(digimons)}></script>
 </Layout>
 
 <script>
-  import { getAllDigimons } from '../../services/digimonService.js';
-
   const LEVEL_CLASSES = {
     Fresh: 'level-Fresh',
     'In Training': 'level-InTraining',
@@ -77,27 +99,45 @@ import DigimonFilter from '../../components/DigimonFilter.astro';
     Ultimate: 'level-Ultimate',
     Mega: 'level-Mega',
     Armor: 'level-Armor',
+    Hybrid: 'level-Hybrid',
+    Unknown: 'level-Unknown',
   };
+  const LEVEL_ORDER = ['Fresh', 'In Training', 'Rookie', 'Champion', 'Ultimate', 'Mega', 'Armor', 'Hybrid', 'Unknown'];
+  const PAGE_SIZE = 24;
 
   const searchInput = document.getElementById('dex-search');
   const levelSelect = document.getElementById('dex-level');
+  const attrSelect = document.getElementById('dex-attribute');
+  const sortSelect = document.getElementById('dex-sort');
+  const clearBtn = document.getElementById('dex-clear');
   const grid = document.getElementById('dex-grid');
-  const loadingEl = document.getElementById('dex-loading');
-  const errorEl = document.getElementById('dex-error');
   const emptyEl = document.getElementById('dex-empty');
   const countEl = document.getElementById('dex-count');
   const metaEl = document.getElementById('dex-meta');
+  const paginationEl = document.getElementById('dex-pagination');
   const retryBtn = document.getElementById('dex-retry');
+  retryBtn?.addEventListener('click', () => location.reload());
 
-  /** @type {Array<{ name: string, img: string, level: string }>} */
   let digimons = [];
+  try {
+    digimons = JSON.parse(document.getElementById('dex-data')?.textContent || '[]');
+  } catch { digimons = []; }
+
+  const params = new URLSearchParams(location.search);
+  if (searchInput && params.get('q')) searchInput.value = params.get('q');
+  if (levelSelect && params.get('level')) levelSelect.value = params.get('level');
+  if (attrSelect && params.get('attribute')) attrSelect.value = params.get('attribute');
+  if (sortSelect && params.get('sort')) sortSelect.value = params.get('sort');
+  let page = Math.max(0, (parseInt(params.get('page') || '1', 10) || 1) - 1);
+
+  let debounce;
 
   function levelClass(level) {
     return LEVEL_CLASSES[level] ?? 'level-Unknown';
   }
 
   function escapeHtml(value) {
-    return String(value)
+    return String(value ?? '')
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;')
@@ -107,10 +147,11 @@ import DigimonFilter from '../../components/DigimonFilter.astro';
 
   function cardHtml(digimon) {
     const href = `/dex/${encodeURIComponent(digimon.name)}`;
+    const attrs = (digimon.attributes || []).slice(0, 2).map((a) => `<span class="digi-attr">${escapeHtml(a)}</span>`).join('');
     return `
       <article class="digi-card hover-lift">
         <div class="img-container">
-          <img src="${escapeHtml(digimon.img)}" alt="${escapeHtml(digimon.name)}" class="digi-img" loading="lazy" />
+          <img src="${escapeHtml(digimon.img)}" alt="${escapeHtml(digimon.name)}" class="digi-img" loading="lazy" decoding="async" width="240" height="180" onerror="this.onerror=null;this.src='/favicon.svg'" />
           <div class="scan-line"></div>
         </div>
         <div class="digi-body">
@@ -120,6 +161,7 @@ import DigimonFilter from '../../components/DigimonFilter.astro';
               <span class="badge ${levelClass(digimon.level)}">${escapeHtml(digimon.level)}</span>
               <span class="digi-kind">DIGIMON</span>
             </div>
+            ${attrs ? `<div class="digi-attrs">${attrs}</div>` : ''}
           </div>
           <a href="${href}" class="btn-text digi-link">
             Ver ficha <span class="material-icons">arrow_forward</span>
@@ -128,57 +170,106 @@ import DigimonFilter from '../../components/DigimonFilter.astro';
       </article>`;
   }
 
-  function applyFilters() {
-    const nameFilter = searchInput.value.trim().toLowerCase();
-    const levelFilter = levelSelect.value;
+  function getFiltered() {
+    const q = (searchInput?.value || '').trim().toLowerCase();
+    const level = levelSelect?.value || '';
+    const attr = attrSelect?.value || '';
+    const sort = sortSelect?.value || 'name-asc';
     const filtered = digimons.filter((d) => {
-      const nameMatch = d.name.toLowerCase().includes(nameFilter);
-      const levelMatch = !levelFilter || d.level === levelFilter;
-      return nameMatch && levelMatch;
+      if (q && !d.name.toLowerCase().includes(q)) return false;
+      if (level && d.level !== level) return false;
+      if (attr && !(d.attributes || []).includes(attr)) return false;
+      return true;
     });
-
-    countEl.textContent = String(filtered.length);
-    metaEl.textContent = `${filtered.length} de ${digimons.length}`;
-
-    const hasResults = filtered.length > 0;
-    emptyEl.hidden = hasResults;
-    grid.hidden = !hasResults;
-    if (hasResults) {
-      grid.innerHTML = filtered.map(cardHtml).join('');
-    } else {
-      grid.innerHTML = '';
-    }
+    if (sort === 'name-desc') filtered.sort((a, b) => b.name.localeCompare(a.name));
+    else if (sort === 'level') filtered.sort((a, b) => LEVEL_ORDER.indexOf(a.level) - LEVEL_ORDER.indexOf(b.level) || a.name.localeCompare(b.name));
+    else filtered.sort((a, b) => a.name.localeCompare(b.name));
+    return filtered;
   }
 
-  async function loadDigimons() {
-    loadingEl.hidden = false;
-    errorEl.hidden = true;
-    emptyEl.hidden = true;
-    grid.hidden = true;
-    try {
-      digimons = await getAllDigimons();
-
-      const levels = [...new Set(digimons.map((d) => d.level).filter(Boolean))].sort();
-      const current = levelSelect.value;
-      levelSelect.innerHTML =
-        '<option value="">Todos los niveles</option>' +
-        levels.map((l) => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('');
-      if (levels.includes(current)) levelSelect.value = current;
-
-      loadingEl.hidden = true;
-      applyFilters();
-    } catch (err) {
-      console.error('[DigiDex] No se pudo cargar el catálogo:', err);
-      loadingEl.hidden = true;
-      errorEl.hidden = false;
-    }
+  function syncUrl(totalPages) {
+    const next = new URLSearchParams();
+    if (searchInput?.value.trim()) next.set('q', searchInput.value.trim());
+    if (levelSelect?.value) next.set('level', levelSelect.value);
+    if (attrSelect?.value) next.set('attribute', attrSelect.value);
+    if (sortSelect?.value && sortSelect.value !== 'name-asc') next.set('sort', sortSelect.value);
+    if (page > 0) next.set('page', String(page + 1));
+    history.replaceState(null, '', next.size ? `?${next}` : location.pathname);
   }
 
-  searchInput.addEventListener('input', applyFilters);
-  levelSelect.addEventListener('change', applyFilters);
-  retryBtn.addEventListener('click', loadDigimons);
+  function pageWindow(current, total) {
+    const windowSize = 5;
+    let start = Math.max(0, Math.min(current - 2, total - windowSize));
+    const end = Math.min(total, start + windowSize);
+    start = Math.max(0, end - windowSize);
+    const out = [];
+    for (let i = start; i < end; i++) out.push(i);
+    return out;
+  }
 
-  loadDigimons();
+  function renderPagination(totalPages) {
+    if (!paginationEl) return;
+    if (totalPages <= 1) {
+      paginationEl.innerHTML = '';
+      return;
+    }
+    const nums = pageWindow(page, totalPages).map((i) =>
+      `<button type="button" class="page-btn${i === page ? ' active' : ''}" data-page="${i}" ${i === page ? 'aria-current="page"' : ''}>${i + 1}</button>`,
+    ).join('');
+    paginationEl.innerHTML = `
+      <button type="button" class="page-btn page-nav" data-page="${page - 1}" ${page === 0 ? 'disabled' : ''} aria-label="Página anterior">
+        <span class="material-icons">chevron_left</span>
+      </button>
+      ${nums}
+      <button type="button" class="page-btn page-nav" data-page="${page + 1}" ${page >= totalPages - 1 ? 'disabled' : ''} aria-label="Página siguiente">
+        <span class="material-icons">chevron_right</span>
+      </button>`;
+    paginationEl.querySelectorAll('[data-page]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const p = parseInt(btn.dataset.page, 10);
+        if (!Number.isNaN(p)) {
+          page = p;
+          applyFilters(false);
+          document.getElementById('dex-results')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  }
+
+  function applyFilters(resetPage = true) {
+    if (!grid) return;
+    if (resetPage) page = 0;
+    const filtered = getFiltered();
+    const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if (page > totalPages - 1) page = totalPages - 1;
+    const visible = filtered.slice(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE);
+
+    if (countEl) countEl.textContent = String(filtered.length);
+    if (metaEl) metaEl.textContent = filtered.length
+      ? `Página ${page + 1} de ${totalPages} · ${filtered.length} resultados`
+      : '';
+    if (emptyEl) emptyEl.hidden = filtered.length > 0;
+    grid.innerHTML = visible.map(cardHtml).join('');
+    renderPagination(totalPages);
+    syncUrl(totalPages);
+  }
+
+  searchInput?.addEventListener('input', () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => applyFilters(true), 200);
+  });
+  levelSelect?.addEventListener('change', () => applyFilters(true));
+  attrSelect?.addEventListener('change', () => applyFilters(true));
+  sortSelect?.addEventListener('change', () => applyFilters(true));
+  clearBtn?.addEventListener('click', () => {
+    if (searchInput) searchInput.value = '';
+    if (levelSelect) levelSelect.value = '';
+    if (attrSelect) attrSelect.value = '';
+    if (sortSelect) sortSelect.value = 'name-asc';
+    applyFilters(true);
+  });
+
+  if (grid) applyFilters(false);
 </script>
 
 <style>
@@ -299,27 +390,6 @@ import DigimonFilter from '../../components/DigimonFilter.astro';
     flex-direction: column;
   }
 
-  #dex-loading {
-    flex-direction: row;
-  }
-
-  .spinner {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    border: 4px solid rgba(255, 204, 0, 0.2);
-    border-top-color: var(--secondary);
-    animation: spin 0.9s linear infinite;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  .state-text {
-    color: rgba(255, 255, 255, 0.6);
-  }
-
   .state-icon {
     font-size: 56px;
     color: #9e9e9e;
@@ -358,5 +428,68 @@ import DigimonFilter from '../../components/DigimonFilter.astro';
     gap: 16px;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     justify-items: center;
+  }
+
+  .digi-attrs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .digi-attr {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(45, 226, 230, 0.45);
+    color: var(--info);
+  }
+
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 28px;
+  }
+
+  .page-btn {
+    min-width: 40px;
+    height: 40px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.05);
+    color: #fff;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+
+  .page-btn:hover:not(:disabled) {
+    border-color: var(--secondary);
+    color: var(--secondary);
+  }
+
+  .page-btn.active {
+    background: var(--secondary);
+    border-color: var(--secondary);
+    color: #3e2700;
+  }
+
+  .page-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .noscript-note {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.55);
+    font-size: 13px;
+    margin-top: 16px;
   }
 </style>
