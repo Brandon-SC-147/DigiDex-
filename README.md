@@ -81,7 +81,8 @@ DigiDex consume únicamente la información realmente disponible en la API y no 
 
 ## Tecnologías
 
-- Astro 5 (sitio estático)
+- Astro 5 (estático + SSR híbrido vía adapter)
+- @astrojs/cloudflare (despliegue como Worker)
 - JavaScript
 - HTML5
 - CSS
@@ -116,10 +117,10 @@ src/
 
 | Ruta | Descripción |
 | ---- | ----------- |
-| `/` | Pantalla de bienvenida. |
-| `/dex` | Catálogo paginado (24 por página). Acepta `?page=` (base 1), `?name=`, `?level=`, `?attribute=` y `?xAntibody=`. |
-| `/dex/:id-:slug` | Detalle del Digimon (prerenderizado). El ID identifica, el slug describe. |
-| `/dex/:name` | Formato heredado: redirige a la URL estable con ID. |
+| `/` | Pantalla de bienvenida (prerenderizada). |
+| `/dex` | Catálogo paginado (24 por página, prerenderizado + hidratado). Acepta `?page=` (base 1), `?name=`, `?level=`, `?attribute=` y `?xAntibody=`. |
+| `/dex/:id-:slug` | Detalle del Digimon, renderizado bajo demanda (SSR). El ID identifica, el slug describe. |
+| `/dex/:name` | Formato heredado: redirect 302 a la URL estable con ID. |
 
 ### Rutas previstas
 

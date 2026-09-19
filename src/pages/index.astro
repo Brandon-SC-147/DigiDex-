@@ -2,6 +2,8 @@
 import Layout from '../layouts/Layout.astro';
 import { getTotalCount } from '../services/digimonService.js';
 
+export const prerender = true;
+
 let totalCount = 0;
 try {
   totalCount = await getTotalCount();

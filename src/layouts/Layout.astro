@@ -4,15 +4,17 @@ import '../styles/global.css';
 interface Props {
   title?: string;
   description?: string;
+  canonical?: string;
 }
 
 const {
   title = 'DigiDex Web',
   description = 'DigiDex Web — Enciclopedia interactiva para explorar Digimon, consultar sus características, niveles e información detallada.',
+  canonical: canonicalProp = '',
 } = Astro.props;
 const currentPath = Astro.url.pathname;
 const site = Astro.site?.toString().replace(/\/$/, '') ?? '';
-const canonical = site ? `${site}${currentPath}` : currentPath;
+const canonical = canonicalProp || (site ? `${site}${currentPath}` : currentPath);
 ---
 <!doctype html>
 <html lang="es">
@@ -74,7 +76,7 @@ const canonical = site ? `${site}${currentPath}` : currentPath;
       <div class="footer-inner">
         <span>DigiDex Web — proyecto fan sin afiliación con Bandai.</span>
         <span class="footer-sep">·</span>
-        <span>Datos: digimon-api.vercel.app</span>
+        <span>Datos: digi-api.com</span>
       </div>
     </footer>
   </body>

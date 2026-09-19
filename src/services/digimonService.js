@@ -152,57 +152,21 @@ export async function getDigimonById(id) {
 
 /** Ficha por nombre (búsqueda exacta insensible a mayúsculas). */
 export async function getDigimonByName(name) {
+  const hit = await resolveLegacySlug(name);
+  if (!hit) return null;
+  return getDigimonById(hit.id);
+}
+
+/** Resuelve un nombre heredado a { id, name } con 1 sola petición (sin detalle). */
+export async function resolveLegacySlug(name) {
   const data = await fetchWithTimeout(
     `${BASE_URL}/digimon?name=${encodeURIComponent(name)}&pageSize=20`,
   );
   const items = data?.content ?? [];
-  const exact = items.find((i) => i.name.toLowerCase() === String(name).toLowerCase()) ?? items[0];
+  const exact =
+    items.find((i) => String(i.name).toLowerCase() === String(name).toLowerCase()) ?? items[0];
   if (!exact) return null;
-  return getDigimonById(exact.id);
-}
-
-/** Recorre la lista paginada (`pageSize` alto = pocas peticiones). */
-let listCache = null;
-async function fetchAllList(pageSize = 200) {
-  if (listCache) return listCache;
-  const out = [];
-  let page = 0;
-  for (;;) {
-    const data = await fetchWithTimeout(`${BASE_URL}/digimon?page=${page}&pageSize=${pageSize}`);
-    const items = data?.content ?? [];
-    out.push(...items);
-    const pageable = data?.pageable;
-    if (!pageable?.nextPage || items.length === 0) break;
-    page += 1;
-  }
-  listCache = out;
-  return out;
-}
-
-/** Lista ligera [{ id, name }] para generar rutas en el build. */
-export async function getDigimonIdList() {
-  const list = await fetchAllList();
-  return list.map((i) => ({ id: i.id, name: i.name }));
-}
-
-/** Mapa nombre -> id desde la lista ligera (resuelve URLs heredadas `/dex/Nombre`). */
-export async function getNameIdMap() {
-  const list = await fetchAllList();
-  const map = new Map();
-  for (const item of list) map.set(String(item.name).toLowerCase(), item.id);
-  return map;
-}
-
-/** Vecinos por ID para navegación anterior/siguiente (desde la lista ligera). */
-export async function getIdNeighbors(id) {
-  const list = await fetchAllList();
-  const ids = [...new Set(list.map((i) => i.id))].sort((a, b) => a - b);
-  const idx = ids.indexOf(Number(id));
-  const at = (i) => {
-    const item = list.find((l) => l.id === ids[i]);
-    return item ? { id: item.id, name: item.name, href: `/dex/${item.id}-${slugify(item.name)}` } : null;
-  };
-  return { prev: idx > 0 ? at(idx - 1) : null, next: idx >= 0 && idx < ids.length - 1 ? at(idx + 1) : null };
+  return { id: exact.id, name: exact.name };
 }
 
 /** Detalles crudos por id (caché en memoria: build y sesión del navegador). */

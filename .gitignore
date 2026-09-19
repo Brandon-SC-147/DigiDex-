@@ -1,6 +1,9 @@
 # Dependencias
 node_modules/
 
+# Wrangler local
+.wrangler/
+
 # Build / caché de Astro
 .astro/
 dist/

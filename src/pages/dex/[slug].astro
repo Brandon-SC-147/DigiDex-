@@ -1,40 +1,24 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import {
-  getDigimonIdList,
   getDigimonById,
-  getIdNeighbors,
   getSameLevel,
-  getNameIdMap,
+  resolveLegacySlug,
+  parseSlugId,
   slugify,
+  detailHref,
   LEVEL_CLASSES,
 } from '../../services/digimonService.js';
 
 /**
- * Ruta unificada de ficha:
- * - Formato estable `/dex/123-slug` (el ID identifica, el slug describe).
- * - Formato heredado `/dex/Nombre` -> redirección 1 paso a la URL estable.
+ * Ficha SSR bajo demanda (sin getStaticPaths masivo):
+ * - `/dex/123-slug`: el ID identifica (1 sola petición de detalle).
+ * - `/dex/Nombre` heredado: redirect 302 a la URL estable (1 búsqueda ligera).
+ * - Slug descriptivo libre: se canonicaliza, no rompe la navegación.
  */
-export async function getStaticPaths() {
-  try {
-    const list = await getDigimonIdList();
-    return list.flatMap((item) => [
-      {
-        params: { slug: `${item.id}-${slugify(item.name)}` },
-        props: { mode: 'detail', id: item.id },
-      },
-      {
-        params: { slug: item.name },
-        props: { mode: 'legacy', name: item.name },
-      },
-    ]);
-  } catch {
-    return [];
-  }
-}
+export const prerender = false;
 
 const { slug } = Astro.params;
-const mode = Astro.props.mode ?? 'detail';
 
 function esc(s) {
   return String(s ?? '')
@@ -44,35 +28,28 @@ function esc(s) {
     .replaceAll('"', '&quot;');
 }
 
-// ---- Rama heredada: redirección a la URL estable ----
-let legacyTarget = '';
-if (mode === 'legacy') {
+// ---- Rama heredada: redirect dinámico a la URL estable ----
+const slugId = parseSlugId(slug);
+if (slugId == null) {
   try {
-    const map = await getNameIdMap();
-    const id = map.get(String(Astro.props.name ?? slug).toLowerCase());
-    if (id != null) legacyTarget = `/dex/${id}-${slugify(Astro.props.name ?? slug)}`;
+    const hit = await resolveLegacySlug(slug);
+    if (hit) return Astro.redirect(`/dex/${hit.id}-${slugify(hit.name)}`, 302);
   } catch {
-    legacyTarget = '';
+    // Sigue al 404 de abajo.
   }
 }
 
-// ---- Rama detalle ----
+// ---- Rama detalle: 1 sola petición ----
 let digimon = null;
-let neighbors = { prev: null, next: null };
 let related = [];
-if (mode === 'detail') {
-  const id = Number(Astro.props.id ?? String(slug).match(/^(\d+)/)?.[1]);
+if (slugId != null) {
   try {
-    digimon = await getDigimonById(id);
+    digimon = await getDigimonById(slugId);
   } catch {
     digimon = null;
   }
   if (digimon) {
-    try {
-      neighbors = await getIdNeighbors(digimon.id);
-    } catch {
-      neighbors = { prev: null, next: null };
-    }
+    Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=3600');
     try {
       related = await getSameLevel(digimon.nativeLevel, digimon.id, 6);
     } catch {
@@ -80,6 +57,7 @@ if (mode === 'detail') {
     }
   }
 }
+if (!digimon) Astro.response.status = 404;
 
 const levelClass = digimon ? (LEVEL_CLASSES[digimon.level] ?? 'level-Unknown') : 'level-Unknown';
 const badgeClass = 'badge detail-badge ' + levelClass;
@@ -97,24 +75,10 @@ const jsonLd = digimon
     })
   : '';
 
-let navHtml = '';
-if (neighbors.prev) {
-  navHtml +=
-    '<a class="btn btn-outline nav-btn" href="' +
-    esc(neighbors.prev.href) +
-    '"><span class="material-icons">arrow_back</span> ' +
-    esc(neighbors.prev.name) +
-    '</a>';
-}
-if (neighbors.next) {
-  navHtml +=
-    '<a class="btn btn-outline nav-btn" href="' +
-    esc(neighbors.next.href) +
-    '">' +
-    esc(neighbors.next.name) +
-    ' <span class="material-icons">arrow_forward</span></a>';
-}
-const hasNav = navHtml.length > 0;
+// Sin navegación por ID contiguo (los ID pueden tener huecos);
+// la navegación vive en las evoluciones. Se conserva el estilo por compatibilidad.
+const navHtml = '';
+const hasNav = false;
 
 function evoCardHtml(e) {
   const inner =
@@ -217,9 +181,7 @@ const fieldChips = digimon
       .join('')
   : '';
 ---
-<Layout title={title} description={description}>
-  {mode === 'legacy' && legacyTarget ? <link rel="canonical" href={legacyTarget} /> : null}
-  {mode === 'legacy' && legacyTarget ? <meta http-equiv="refresh" content={'0;url=' + legacyTarget} /> : null}
+<Layout title={title} description={description} canonical={digimon ? detailHref(digimon) : ''}>
   {jsonLd ? <span id="json-ld" data-json={jsonLd} hidden></span> : null}
   <main class="dex-page-bg">
     <div class="container detail-container">
@@ -227,20 +189,7 @@ const fieldChips = digimon
         <span class="material-icons">arrow_back</span> Volver al Dex
       </a>
 
-      {mode === 'legacy' ? (
-        <section class="error-card">
-          <div class="state-block">
-            <span class="material-icons state-icon">info_outline</span>
-            <div class="state-heading">URL actualizada</div>
-            <div class="state-sub">Las fichas ahora usan ID estable. Serás redirigido…</div>
-            {legacyTarget ? (
-              <a class="btn btn-primary" href={legacyTarget}>
-                Ir a la ficha <span class="material-icons">arrow_forward</span>
-              </a>
-            ) : null}
-          </div>
-        </section>
-      ) : !digimon ? (
+      {!digimon ? (
         <section class="error-card">
           <div class="state-block">
             <span class="material-icons state-icon">help_outline</span>
