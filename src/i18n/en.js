@@ -61,7 +61,6 @@ export const en = {
     fAttr: 'ATTRIBUTE',
     fType: 'TYPE',
     stage: 'Stage',
-    note: 'Data from Digi-API (digi-api.com), fan project with no Bandai affiliation.',
     descT: 'Description',
     descNote: '',
     descFallback: '',
