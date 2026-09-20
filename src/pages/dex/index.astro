@@ -504,14 +504,14 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({ value: native }));
     justify-items: center;
   }
 
-  .digi-attrs {
+  :global(.digi-attrs) {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
     margin-top: 6px;
   }
 
-  .digi-attr {
+  :global(.digi-attr) {
     font-size: 11px;
     padding: 2px 8px;
     border-radius: 999px;
@@ -519,15 +519,10 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({ value: native }));
     color: var(--info);
   }
 
-  .skeleton-card {
+  :global(.skeleton-card) {
     min-height: 280px;
     background: rgba(255, 255, 255, 0.04);
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 0.5; }
-    50% { opacity: 1; }
+    animation: dex-pulse 1.2s ease-in-out infinite;
   }
 
   .pagination {
@@ -538,7 +533,7 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({ value: native }));
     margin-top: 28px;
   }
 
-  .page-btn {
+  :global(.page-btn) {
     min-width: 40px;
     height: 40px;
     padding: 0 12px;
@@ -555,18 +550,18 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({ value: native }));
     transition: border-color 0.2s ease, background 0.2s ease;
   }
 
-  .page-btn:hover:not(:disabled) {
+  :global(.page-btn:hover:not(:disabled)) {
     border-color: var(--secondary);
     color: var(--secondary);
   }
 
-  .page-btn.active {
+  :global(.page-btn.active) {
     background: var(--secondary);
     border-color: var(--secondary);
     color: #3e2700;
   }
 
-  .page-btn:disabled {
+  :global(.page-btn:disabled) {
     opacity: 0.35;
     cursor: default;
   }
