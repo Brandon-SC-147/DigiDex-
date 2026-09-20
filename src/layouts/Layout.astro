@@ -374,22 +374,19 @@ const genActive = currentPath.startsWith('/generaciones');
       overflow: hidden;
       text-overflow: ellipsis;
     }
-
-    .header-links {
-      gap: 4px;
-      flex-shrink: 0;
-    }
-
-    .lang-toggle {
-      padding: 6px 8px;
-    }
   }
 
   .header-links {
     margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
+  }
+
+  @media (max-width: 900px) and (min-width: 641px) {
+    .header-links {
+      gap: 10px;
+    }
   }
 
   .lang-select {
@@ -401,7 +398,8 @@ const genActive = currentPath.startsWith('/generaciones');
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 8px 12px;
+    min-height: 40px;
+    padding: 8px 14px;
     border-radius: 999px;
     border: 1px solid rgba(255, 255, 255, 0.2);
     background: rgba(255, 255, 255, 0.04);
@@ -511,14 +509,6 @@ const genActive = currentPath.startsWith('/generaciones');
   }
 
   @media (max-width: 640px) {
-    .lang-select {
-      margin: 0 2px;
-    }
-
-    .lang-toggle {
-      padding: 7px 9px;
-    }
-
     .lang-label-full {
       display: none;
     }
@@ -532,6 +522,7 @@ const genActive = currentPath.startsWith('/generaciones');
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-height: 40px;
     padding: 8px 14px;
     border-radius: 8px;
     text-decoration: none;
@@ -573,6 +564,23 @@ const genActive = currentPath.startsWith('/generaciones');
 
   .gen-toggle.open .gen-chevron {
     transform: rotate(180deg);
+  }
+
+  @media (max-width: 640px) {
+    .header-links {
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .header-link {
+      min-height: 36px;
+      padding: 6px 10px;
+    }
+
+    .lang-toggle {
+      padding: 6px 8px;
+      min-height: 36px;
+    }
   }
 
   .gen-menu {
@@ -757,6 +765,7 @@ const genActive = currentPath.startsWith('/generaciones');
     justify-content: center;
     width: 38px;
     height: 38px;
+    margin-inline-start: 4px;
     border-radius: 10px;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.22);
