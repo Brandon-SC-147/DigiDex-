@@ -8,6 +8,7 @@ import {
   NATIVE_ATTRIBUTES,
 } from '../../services/digimonService.js';
 import { t, normalizeLang, currentLang } from '../../i18n/index.js';
+import { escapeHtml, safeJsonForHtml } from '../../utils/security.js';
 
 export const prerender = true;
 
@@ -91,12 +92,13 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({ value: native }));
     </div>
   </main>
 
-  <script type="application/json" id="dex-first-page" set:html={JSON.stringify(firstPage)}></script>
+  <script type="application/json" id="dex-first-page" set:html={safeJsonForHtml(firstPage)}></script>
 </Layout>
 
 <script>
   import { getDigimonPage, getLevelClass, NATIVE_LEVELS, NATIVE_ATTRIBUTES } from '../../services/digimonService.js';
   import { t, currentLang, localizeLevel, localizeAttr } from '../../i18n/index.js';
+  import { escapeHtml } from '../../utils/security.js';
 
   const PAGE_SIZE = 24;
   let lang = currentLang();
@@ -147,23 +149,14 @@ const levelOptions = NATIVE_LEVELS.map((native) => ({ value: native }));
     return Boolean(f.name || f.level || f.attribute || f.xAntibody);
   }
 
-  function escapeHtml(value) {
-    return String(value ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&#39;');
-  }
-
   function cardHtml(d) {
-    const href = d.href || `/dex/${d.id}`;
+    const href = escapeHtml(d.href || `/dex/${Number.isFinite(Number(d.id)) ? Number(d.id) : ''}`);
     const levelLabel = localizeLevel(d.nativeLevel ?? d.level, lang);
     const attrs = (d.attributes || []).slice(0, 2).map((a) => `<span class="digi-attr">${escapeHtml(localizeAttr(a, lang))}</span>`).join('');
     return `
       <article class="digi-card hover-lift">
         <div class="img-container">
-          <img src="${escapeHtml(d.img)}" alt="${escapeHtml(d.name)}" class="digi-img" loading="lazy" decoding="async" width="240" height="180" onerror="this.onerror=null;this.src='/favicon.svg'" />
+          <img src="${escapeHtml(d.img)}" alt="${escapeHtml(d.name)}" class="digi-img" loading="lazy" decoding="async" referrerpolicy="no-referrer" width="240" height="180" onerror="this.onerror=null;this.src='/favicon.svg'" />
           <div class="scan-line"></div>
         </div>
         <div class="digi-body">
