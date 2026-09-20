@@ -192,8 +192,8 @@ const fieldChips = digimon
       .map(
         (f) =>
           '<span class="chip chip-field">' +
-          (f.image ? '<img src="' + esc(f.image) + '" alt="" width="18" height="18" loading="lazy" />' : '<span class="material-icons chip-fallback-icon" aria-hidden="true">category</span>') +
-          esc(localizeField(f.name, lang)) +
+          (f.image ? '<img src="' + esc(f.image) + '" alt="" width="20" height="20" loading="lazy" />' : '<span class="material-icons chip-fallback-icon" aria-hidden="true">category</span>') +
+          '<span class="chip-label">' + esc(localizeField(f.name, lang)) + '</span>' +
           '</span>',
       )
       .join('')
@@ -323,10 +323,24 @@ const factsJson = digimon
               <h2 class="section-title"><span data-i18n="detail.skillsT">{t(lang, 'detail.skillsT')}</span> ({digimon.skills.length})</h2>
               <ul class="skill-list" data-skills="first" set:html={skillsHtml}></ul>
               {hasRestSkills ? (
-                <details class="evo-more">
-                  <summary class="evo-summary" data-i18n-more="skills" data-count={restSkillsCount}>{t(lang, 'detail.moreSkills', { n: restSkillsCount })}</summary>
-                  <ul class="skill-list" data-skills="rest" set:html={restSkillsHtml}></ul>
-                </details>
+                <div>
+                  <div class="skills-rest" id="dex-skills-rest" hidden>
+                    <ul class="skill-list" data-skills="rest" set:html={restSkillsHtml}></ul>
+                  </div>
+                  <div class="skills-toggle-wrap">
+                    <button
+                      type="button"
+                      class="skills-toggle"
+                      id="dex-skills-toggle"
+                      aria-expanded="false"
+                      aria-controls="dex-skills-rest"
+                      data-rest-count={restSkillsCount}
+                    >
+                      <span data-skills-label>{t(lang, 'detail.moreSkills', { n: restSkillsCount })}</span>
+                      <span class="material-icons skills-chevron" aria-hidden="true">expand_more</span>
+                    </button>
+                  </div>
+                </div>
               ) : null}
             </section>
           ) : null}
@@ -402,6 +416,33 @@ const factsJson = digimon
     if (lists[1]) lists[1].innerHTML = rest;
   }
 
+  function paintSkillsToggle(lang) {
+    const toggle = document.getElementById('dex-skills-toggle');
+    if (!toggle) return;
+    const expanded = toggle.getAttribute('aria-expanded') === 'true';
+    const n = toggle.getAttribute('data-rest-count') || '0';
+    const label = toggle.querySelector('[data-skills-label]');
+    if (label) label.textContent = expanded ? t(lang, 'detail.showLess') : t(lang, 'detail.moreSkills', { n });
+    toggle.classList.toggle('open', expanded);
+  }
+
+  function setSkillsExpanded(expanded, lang) {
+    const rest = document.getElementById('dex-skills-rest');
+    const toggle = document.getElementById('dex-skills-toggle');
+    if (!rest || !toggle) return;
+    rest.hidden = !expanded;
+    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    paintSkillsToggle(lang);
+    if (expanded) rest.classList.add('skills-rest-open');
+    else rest.classList.remove('skills-rest-open');
+  }
+
+  document.getElementById('dex-skills-toggle')?.addEventListener('click', (e) => {
+    const toggle = e.currentTarget;
+    const expanded = toggle.getAttribute('aria-expanded') !== 'true';
+    setSkillsExpanded(expanded, currentLang());
+  });
+
   // Re-render de valores dinámicos al cambiar de idioma (sin refetch).
   window.addEventListener('digidex:lang', (e) => {
     const lang = (e.detail && e.detail.lang) || currentLang();
@@ -428,8 +469,8 @@ const factsJson = digimon
         .map(
           (f) =>
             '<span class="chip chip-field">' +
-            (f.image ? `<img src="${esc(f.image)}" alt="" width="18" height="18" loading="lazy" />` : '<span class="material-icons chip-fallback-icon" aria-hidden="true">category</span>') +
-            esc(localizeField(f.name, lang)) +
+            (f.image ? `<img src="${esc(f.image)}" alt="" width="20" height="20" loading="lazy" />` : '<span class="material-icons chip-fallback-icon" aria-hidden="true">category</span>') +
+            '<span class="chip-label">' + esc(localizeField(f.name, lang)) + '</span>' +
             '</span>',
         )
         .join('');
@@ -449,6 +490,7 @@ const factsJson = digimon
       }
     }
     renderSkills(facts, lang);
+    paintSkillsToggle(lang);
     const relatedTitle = document.getElementById('dex-related-title');
     if (relatedTitle?.dataset.relatedLevel) {
       relatedTitle.textContent = t(lang, 'detail.relatedT', {
@@ -667,7 +709,7 @@ const factsJson = digimon
 
   .detail-section {
     max-width: 1000px;
-    margin: 40px auto 0;
+    margin: 32px auto 0;
   }
 
   .section-title {
@@ -676,7 +718,7 @@ const factsJson = digimon
     letter-spacing: 1px;
     text-transform: uppercase;
     color: #fff;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
   }
 
   .section-title-row {
@@ -694,7 +736,7 @@ const factsJson = digimon
     background: var(--card-bg);
     border: 1px solid rgba(15, 98, 254, 0.35);
     border-radius: 14px;
-    padding: 22px;
+    padding: 24px;
     box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
   }
 
@@ -740,13 +782,14 @@ const factsJson = digimon
   .chip-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 12px;
   }
 
-  .chip {
+  :global(.chip) {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
+    min-height: 44px;
     padding: 8px 16px;
     border-radius: 999px;
     font-size: 13px;
@@ -756,30 +799,44 @@ const factsJson = digimon
     transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
   }
 
-  .chip:hover {
+  :global(.chip:hover) {
     transform: translateY(-1px);
   }
 
-  .chip img {
-    border-radius: 4px;
+  :global(.chip img),
+  :global(.chip-fallback-icon) {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
   }
 
-  .chip-fallback-icon {
-    font-size: 16px;
+  :global(.chip img) {
+    border-radius: 4px;
+    object-fit: contain;
+  }
+
+  :global(.chip-fallback-icon) {
+    font-size: 20px;
     color: rgba(255, 255, 255, 0.5);
   }
 
-  .chip-info {
+  :global(.chip-label) {
+    min-width: 0;
+    overflow-wrap: break-word;
+    line-height: 1.4;
+  }
+
+  :global(.chip-info) {
     border-color: rgba(45, 226, 230, 0.5);
     color: var(--info);
   }
 
-  .chip-field {
+  :global(.chip-field) {
     color: var(--secondary);
     border-color: rgba(255, 204, 0, 0.4);
   }
 
-  .chip-field:hover {
+  :global(.chip-field:hover) {
     border-color: rgba(255, 204, 0, 0.6);
     box-shadow: 0 4px 14px rgba(255, 204, 0, 0.12);
   }
@@ -789,63 +846,64 @@ const factsJson = digimon
     margin: 0;
     padding: 0;
     display: grid;
-    gap: 10px;
+    gap: 16px;
     grid-template-columns: 1fr;
   }
 
   @media (min-width: 700px) {
     .skill-list {
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
-  .skill-item {
+  :global(.skill-item) {
     background: linear-gradient(160deg, rgba(21, 27, 46, 0.95), rgba(13, 20, 42, 0.95));
     border: 1px solid rgba(15, 98, 254, 0.3);
     border-radius: 14px;
-    padding: 16px 18px;
+    padding: 16px;
+    height: 100%;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
     transition: border-color 0.2s ease, transform 0.2s ease;
     overflow-wrap: break-word;
   }
 
-  .skill-item:hover {
+  :global(.skill-item:hover) {
     border-color: rgba(255, 204, 0, 0.45);
     transform: translateY(-2px);
   }
 
-  .skill-head {
+  :global(.skill-head) {
     display: flex;
     align-items: flex-start;
     gap: 10px;
   }
 
-  .skill-icon {
+  :global(.skill-icon) {
     color: var(--secondary);
     font-size: 20px;
     margin-top: 2px;
     flex-shrink: 0;
   }
 
-  .skill-titles {
+  :global(.skill-titles) {
     min-width: 0;
   }
 
-  .skill-name {
+  :global(.skill-name) {
     font-weight: 800;
     color: #fff;
     font-size: 15.5px;
     line-height: 1.35;
   }
 
-  .skill-trans {
+  :global(.skill-trans) {
     font-size: 12.5px;
     color: #8fb8ff;
     font-style: italic;
     margin-top: 2px;
   }
 
-  .skill-desc {
+  :global(.skill-desc) {
     font-size: 13.5px;
     color: rgba(255, 255, 255, 0.72);
     margin-top: 10px;
@@ -861,20 +919,20 @@ const factsJson = digimon
     justify-items: center;
   }
 
-  .evo-card {
+  :global(.evo-card) {
     text-decoration: none;
   }
 
-  .evo-img-wrap {
+  :global(.evo-img-wrap) {
     height: 140px;
   }
 
-  .evo-name {
+  :global(.evo-name) {
     font-size: 13px;
     overflow-wrap: break-word;
   }
 
-  .evo-cond {
+  :global(.evo-cond) {
     font-size: 11px;
     color: rgba(255, 255, 255, 0.5);
     margin-top: 4px;
@@ -882,11 +940,11 @@ const factsJson = digimon
     overflow-wrap: break-word;
   }
 
-  .evo-more {
+  :global(.evo-more) {
     margin-top: 12px;
   }
 
-  .evo-more .evo-grid {
+  :global(.evo-more .evo-grid) {
     margin-top: 12px;
   }
 
@@ -903,6 +961,70 @@ const factsJson = digimon
   .evo-summary:hover {
     border-color: var(--secondary);
     color: var(--secondary);
+  }
+
+  :global(.skills-rest) {
+    margin-top: 16px;
+  }
+
+  :global(.skills-rest[hidden]) {
+    display: none;
+  }
+
+  :global(.skills-rest-open) {
+    animation: skills-fade 0.22s ease;
+  }
+
+  .skills-toggle-wrap {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+  }
+
+  .skills-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.04);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    font-family: inherit;
+    cursor: pointer;
+    transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease;
+  }
+
+  .skills-toggle:hover {
+    border-color: var(--secondary);
+    color: var(--secondary);
+    background: rgba(255, 204, 0, 0.06);
+  }
+
+  .skills-toggle:focus-visible {
+    outline: 2px solid var(--secondary);
+    outline-offset: 2px;
+  }
+
+  .skills-chevron {
+    font-size: 18px;
+    transition: transform 0.2s ease;
+  }
+
+  .skills-toggle.open .skills-chevron {
+    transform: rotate(180deg);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skills-rest-open {
+      animation: none;
+    }
+
+    .skills-chevron {
+      transition: none;
+    }
   }
 
   .related-grid {

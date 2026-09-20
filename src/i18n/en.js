@@ -68,6 +68,7 @@ export const en = {
     fieldsT: 'Fields',
     skillsT: 'Skills',
     skillNoDesc: 'Description unavailable',
+    showLess: 'Show less',
     moreSkills: 'Show {n} more skills',
     priorT: 'Evolves from',
     nextT: 'Evolves into',
