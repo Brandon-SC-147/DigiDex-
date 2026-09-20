@@ -118,22 +118,24 @@ function evoCardHtml(e) {
   );
 }
 
-function evoSection(list) {
+function evoSection(list, lang) {
   const shown = list.slice(0, 12).map(evoCardHtml).join('');
   const rest = list.slice(12).map(evoCardHtml).join('');
   if (!rest) return shown;
   return (
     shown +
-    '<details class="evo-more"><summary class="evo-summary">Ver ' +
+    '<details class="evo-more"><summary class="evo-summary" data-i18n-more="evo" data-count="' +
     (list.length - 12) +
-    ' más</summary><div class="evo-grid">' +
+    '">' +
+    esc(t(lang, 'detail.moreEvo', { n: list.length - 12 })) +
+    '</summary><div class="evo-grid">' +
     rest +
     '</div></details>'
   );
 }
 
-const priorHtml = digimon ? evoSection(digimon.priorEvolutions) : '';
-const nextHtml = digimon ? evoSection(digimon.nextEvolutions) : '';
+const priorHtml = digimon ? evoSection(digimon.priorEvolutions, lang) : '';
+const nextHtml = digimon ? evoSection(digimon.nextEvolutions, lang) : '';
 const hasPrior = digimon && digimon.priorEvolutions.length > 0;
 const hasNext = digimon && digimon.nextEvolutions.length > 0;
 
@@ -440,8 +442,9 @@ const factsJson = digimon
   });
 
   // Re-render de valores dinámicos al cambiar de idioma (sin refetch).
-  window.addEventListener('digidex:lang', (e) => {
-    const lang = (e.detail && e.detail.lang) || currentLang();
+  // OJO orden de scripts: el init de Layout se dispara antes de que este
+  // listener exista, por eso se sincroniza una vez al cargar además del evento.
+  function syncDynamicLang(lang) {
     let facts = {};
     try {
       facts = JSON.parse(document.getElementById('dex-facts')?.textContent || '{}');
@@ -499,7 +502,12 @@ const factsJson = digimon
       if (kind === 'skills') el.textContent = t(lang, 'detail.moreSkills', { n });
       else el.textContent = t(lang, 'detail.moreEvo', { n });
     });
+  }
+
+  window.addEventListener('digidex:lang', (e) => {
+    syncDynamicLang((e.detail && e.detail.lang) || currentLang());
   });
+  syncDynamicLang(currentLang());
 </script>
 
 <style>
@@ -534,6 +542,10 @@ const factsJson = digimon
     margin: 0 auto;
   }
 
+  .detail-grid > * {
+    min-width: 0;
+  }
+
   @media (min-width: 900px) {
     .detail-grid {
       grid-template-columns: 5fr 7fr;
@@ -563,6 +575,7 @@ const factsJson = digimon
     color: var(--secondary);
     margin: 12px 0 10px;
     text-transform: uppercase;
+    overflow-wrap: break-word;
   }
 
   .detail-badge {
