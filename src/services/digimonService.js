@@ -3,6 +3,8 @@
  * Gratis, sin API key, con CORS. Dataset de ~1488 Digimon con
  * niveles, atributos, tipos, fields, descripciones, skills y evoluciones.
  */
+import { normalizeId, safeImageUrl, isAllowedImageUrl } from '../utils/security.js';
+
 const BASE_URL = 'https://digi-api.com/api/v1';
 const TIMEOUT_MS = 15000;
 
@@ -73,15 +75,15 @@ export function getLevelClass(display) {
   return LEVEL_CLASSES[display] ?? 'level-Unknown';
 }
 
-async function fetchWithTimeout(url) {
+export async function fetchWithTimeout(url, timeoutMs = TIMEOUT_MS) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, { signal: controller.signal });
     if (!res.ok) throw new Error(`Digi-API ${res.status}: ${url}`);
     return res.json();
   } catch (err) {
-    if (err?.name === 'AbortError') throw new Error(`Digi-API sin respuesta (15s): ${url}`);
+    if (err?.name === 'AbortError') throw new Error(`Digi-API sin respuesta (${timeoutMs / 1000}s): ${url}`);
     throw err;
   } finally {
     clearTimeout(timer);
@@ -106,11 +108,17 @@ function englishDescription(descriptions) {
 /** Normaliza el detalle crudo de Digi-API al modelo de la app. */
 export function normalizeDetail(raw) {
   const native = primaryLevel(raw.levels);
+  const toEvo = (e) => ({
+    id: normalizeId(e.id),
+    name: e.digimon,
+    img: safeImageUrl(e.image),
+    condition: e.condition ?? '',
+  });
   return {
-    id: raw.id,
+    id: normalizeId(raw.id),
     name: raw.name,
-    img: raw.images?.[0]?.href ?? '/favicon.svg',
-    images: (raw.images ?? []).map((i) => i.href),
+    img: safeImageUrl(raw.images?.[0]?.href),
+    images: (raw.images ?? []).map((i) => i.href).filter((u) => isAllowedImageUrl(u)),
     nativeLevel: native,
     level: displayLevel(native),
     levels: (raw.levels ?? []).map((l) => ({ native: l.level, display: displayLevel(l.level) })),
@@ -126,27 +134,18 @@ export function normalizeDetail(raw) {
       translation: s.translation ?? '',
       description: s.description ?? '',
     })),
-    priorEvolutions: (raw.priorEvolutions ?? []).map((e) => ({
-      id: e.id,
-      name: e.digimon,
-      img: e.image,
-      condition: e.condition ?? '',
-    })),
-    nextEvolutions: (raw.nextEvolutions ?? []).map((e) => ({
-      id: e.id,
-      name: e.digimon,
-      img: e.image,
-      condition: e.condition ?? '',
-    })),
+    priorEvolutions: (raw.priorEvolutions ?? []).map(toEvo).filter((e) => e.id !== null),
+    nextEvolutions: (raw.nextEvolutions ?? []).map(toEvo).filter((e) => e.id !== null),
   };
 }
 
 /** Ficha completa por id (usa caché en memoria cuando existe). */
 export async function getDigimonById(id) {
-  const key = Number(id);
-  const cached = detailRawCache.get(key) ?? detailRawCache.get(id);
+  const validId = normalizeId(id);
+  if (validId === null) throw new Error(`ID de Digimon inválido: ${String(id)}`);
+  const cached = detailRawCache.get(validId);
   if (cached) return normalizeDetail(cached);
-  const raw = await fetchWithTimeout(`${BASE_URL}/digimon/${id}`);
+  const raw = await fetchWithTimeout(`${BASE_URL}/digimon/${validId}`);
   if (raw?.id != null) detailRawCache.set(raw.id, raw);
   return normalizeDetail(raw);
 }
@@ -167,7 +166,9 @@ export async function resolveLegacySlug(name) {
   const exact =
     items.find((i) => String(i.name).toLowerCase() === String(name).toLowerCase()) ?? items[0];
   if (!exact) return null;
-  return { id: exact.id, name: exact.name };
+  const id = normalizeId(exact.id);
+  if (id === null) return null;
+  return { id, name: exact.name };
 }
 
 /** Detalles crudos por id (caché en memoria: build y sesión del navegador). */
@@ -186,7 +187,9 @@ export function slugify(name) {
 
 /** URL estable de ficha: el ID identifica, el slug solo describe (SEO). */
 export function detailHref(d) {
-  return `/dex/${d.id}-${slugify(d.name)}`;
+  const id = normalizeId(d?.id);
+  if (id === null) return '/dex';
+  return `/dex/${id}-${slugify(d.name)}`;
 }
 
 /** Extrae el ID de un slug `/dex/123-nombre`; null si es formato heredado. */
@@ -236,9 +239,9 @@ export async function getDigimonPage({
   const details = await Promise.all(
     list.map((item) =>
       getDigimonById(item.id).catch(() => ({
-        id: item.id,
+        id: normalizeId(item.id),
         name: item.name,
-        img: item.image ?? '/favicon.svg',
+        img: safeImageUrl(item.image),
         level: 'Unknown',
         attributes: [],
       })),
@@ -273,12 +276,12 @@ export async function getSameLevel(nativeLevel, excludeId, limit = 6) {
     .filter((i) => i.id !== excludeId)
     .slice(0, limit)
     .map((i) => ({
-      id: i.id,
+      id: normalizeId(i.id),
       name: i.name,
-      img: i.image ?? '/favicon.svg',
+      img: safeImageUrl(i.image),
       level: displayLevel(nativeLevel),
       nativeLevel,
       attributes: [],
-      href: `/dex/${i.id}-${slugify(i.name)}`,
+      href: `/dex/${normalizeId(i.id)}-${slugify(i.name)}`,
     }));
 }

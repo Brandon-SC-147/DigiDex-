@@ -19,6 +19,7 @@ import {
   localizeDescription,
   localizeSkillDescription,
 } from '../../i18n/index.js';
+import { escapeHtml as esc, safeJsonForHtml } from '../../utils/security.js';
 
 /**
  * Ficha SSR bajo demanda (sin getStaticPaths masivo):
@@ -30,15 +31,6 @@ export const prerender = false;
 
 const { slug } = Astro.params;
 const lang = normalizeLang(Astro.url.searchParams.get('lang'));
-
-function esc(s) {
-  return String(s ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
-}
-
 // ---- Rama heredada: redirect dinámico a la URL estable ----
 const slugId = parseSlugId(slug);
 if (slugId == null) {
@@ -100,7 +92,7 @@ function evoCardHtml(e) {
     esc(e.img || '/favicon.svg') +
     '" alt="' +
     esc(e.name) +
-    '" class="digi-img" loading="lazy" decoding="async" width="240" height="140" onerror="this.onerror=null;this.src=\'/favicon.svg\'" />' +
+    '" class="digi-img" loading="lazy" decoding="async" referrerpolicy="no-referrer" width="240" height="140" onerror="this.onerror=null;this.src=\'/favicon.svg\'" />' +
     '</div>' +
     '<div class="digi-body"><div class="digi-name evo-name">' +
     esc(e.name) +
@@ -108,10 +100,8 @@ function evoCardHtml(e) {
     (e.condition ? '<div class="evo-cond">' + esc(e.condition) + '</div>' : '') +
     '</div>';
   return (
-    '<a class="digi-card hover-lift evo-card" href="/dex/' +
-    e.id +
-    '-' +
-    slugify(e.name) +
+    '<a class="digi-card hover-lift evo-card" href="' +
+    esc('/dex/' + e.id + '-' + slugify(e.name)) +
     '">' +
     inner +
     '</a>'
@@ -150,7 +140,7 @@ function relatedCardHtml(d) {
     esc(d.img) +
     '" alt="' +
     esc(d.name) +
-    '" class="digi-img" loading="lazy" decoding="async" width="240" height="180" onerror="this.onerror=null;this.src=\'/favicon.svg\'" />' +
+    '" class="digi-img" loading="lazy" decoding="async" referrerpolicy="no-referrer" width="240" height="180" onerror="this.onerror=null;this.src=\'/favicon.svg\'" />' +
     '<div class="scan-line"></div></div>' +
     '<div class="digi-body"><div>' +
     '<div class="digi-name">' +
@@ -203,7 +193,7 @@ const fieldChips = digimon
 const descLocalized = digimon ? localizeDescription(digimon, lang) : { text: '', translated: true };
 const showDescFallback = Boolean(lang === 'es' && !descLocalized.translated && descLocalized.text);
 const factsJson = digimon
-  ? JSON.stringify({
+  ? safeJsonForHtml({
       attributes: digimon.attributes,
       types: digimon.types,
       fields: digimon.fields.map((f) => ({ name: f.name, image: f.image })),
@@ -249,6 +239,9 @@ const factsJson = digimon
                 class="detail-img"
                 width="320"
                 height="320"
+                loading="eager"
+                decoding="async"
+                referrerpolicy="no-referrer"
                 onerror="this.onerror=null;this.src='/favicon.svg'"
               />
               <h1 class="detail-name">{digimon.name}</h1>
@@ -372,6 +365,7 @@ const factsJson = digimon
 
 <script>
   import { currentLang, t, localizeLevel, localizeAttr, localizeType, localizeField } from '../../i18n/index.js';
+  import { escapeHtml as esc } from '../../utils/security.js';
 
   const holder = document.getElementById('json-ld');
   if (holder && holder.dataset.json) {
@@ -379,14 +373,6 @@ const factsJson = digimon
     s.type = 'application/ld+json';
     s.textContent = holder.dataset.json;
     document.head.appendChild(s);
-  }
-
-  function esc(s) {
-    return String(s ?? '')
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;');
   }
 
   function skillCardHtml(s, lang) {
