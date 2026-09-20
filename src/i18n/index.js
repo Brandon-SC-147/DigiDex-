@@ -145,7 +145,17 @@ export function setLanguage(lang) {
 }
 
 export function initLanguage() {
-  const lang = getStoredLang();
+  // La URL explícita (?lang=) manda sobre el guardado y lo actualiza.
+  let lang = getStoredLang();
+  try {
+    const q = new URLSearchParams(location.search).get('lang');
+    if (q === 'es' || q === 'en') {
+      lang = q;
+      localStorage.setItem(LANG_KEY, lang);
+    }
+  } catch {
+    /* URL no disponible */
+  }
   document.documentElement.lang = lang;
   swapStatic(document, lang);
   paintSwitcher(lang);
