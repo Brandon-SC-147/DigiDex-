@@ -1,10 +1,11 @@
-# DigiDex — despliegue Cloudflare (Workers + Assets).
+# DigiDex Gen2 — despliegue Cloudflare (Worker digidex-universe + Assets).
 # El Worker sale de `npm run build` (adapter @astrojs/cloudflare -> dist/_worker.js).
-# NO apunta al despliegue histórico; ese Worker vive fuera de este repo.
-name = "digidex"
+# NO apunta al despliegue histórico "digidex"; ese Worker vive fuera de este repo.
+name = "digidex-universe"
 compatibility_date = "2026-09-19"
 compatibility_flags = ["nodejs_compat"]
 main = "./dist/_worker.js/index.js"
 
 [assets]
 directory = "./dist"
+binding = "ASSETS"
