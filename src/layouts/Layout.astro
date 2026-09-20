@@ -178,13 +178,6 @@ const genActive = currentPath.startsWith('/generaciones');
       </nav>
     </header>
     <slot />
-    <footer class="site-footer">
-      <div class="footer-inner">
-        <span data-i18n="footer.fan">{t(lang, 'footer.fan')}</span>
-        <span class="footer-sep">·</span>
-        <span><span data-i18n="footer.data">{t(lang, 'footer.data')}</span>: digi-api.com</span>
-      </div>
-    </footer>
     <script>
       import { getStoredLang, setLanguage, initLanguage } from '../i18n/index.js';
 
@@ -762,25 +755,4 @@ const genActive = currentPath.startsWith('/generaciones');
     transform: translateY(-1px);
   }
 
-  .site-footer {
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(11, 15, 31, 0.9);
-  }
-
-  .footer-inner {
-    max-width: 1320px;
-    margin: 0 auto;
-    padding: 14px 16px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    color: rgba(255, 255, 255, 0.55);
-  }
-
-  .footer-sep {
-    opacity: 0.5;
-  }
 </style>
