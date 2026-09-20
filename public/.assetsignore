@@ -1,0 +1,4 @@
+# Excluir del upload de assets públicos (el Worker SSR sale de dist/_worker.js
+# como entrypoint y NO debe publicarse como asset).
+_worker.js
+_routes.json
